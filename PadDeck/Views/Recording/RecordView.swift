@@ -210,7 +210,7 @@ struct RecordView: View {
 
     private func cancelRecording() {
         if isRecording {
-            appState.audioEngine.stopRecording()
+            _ = appState.audioEngine.stopRecording()
         }
         timer?.invalidate()
         if let url = recordingURL {

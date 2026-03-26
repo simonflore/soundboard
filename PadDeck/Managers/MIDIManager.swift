@@ -26,6 +26,8 @@ final class MIDIManager {
     var onPadReleased: ((GridPosition) -> Void)?
     /// Called with the logical side button index (0 = bottom, 7 = top).
     var onSideButtonPressed: ((Int) -> Void)?
+    /// Called with the logical top button index (0 = left, 7 = right). CC 91-98.
+    var onTopButtonPressed: ((Int) -> Void)?
     var onDeviceConnected: (() -> Void)?
 
     init() {
@@ -194,6 +196,13 @@ final class MIDIManager {
         sendSysEx(proto.rgbLEDMessage(note: note, r: color.r, g: color.g, b: color.b))
     }
 
+    /// Set a top-row button LED by logical index (0 = left, 7 = right). CC 91-98.
+    func setTopButtonLED(index: Int, color: LaunchpadColor) {
+        guard let proto = lpProtocol, (0...7).contains(index) else { return }
+        let note = UInt8(91 + index)
+        sendSysEx(proto.rgbLEDMessage(note: note, r: color.r, g: color.g, b: color.b))
+    }
+
     // MARK: - Side Button Mapping
 
     /// Right-column side button notes: 19, 29, 39, 49, 59, 69, 79, 89.
@@ -274,8 +283,17 @@ final class MIDIManager {
                         }
                     }
                 }
-                // CC messages (0xB0) from top-row buttons (CC 91-98) are not routed currently.
-                // Wire up an onTopButtonPressed callback here if needed in the future.
+                // CC messages (0xB0) from top-row buttons (CC 91-98)
+                if statusHigh == 0xB0 {
+                    let cc = note  // in CC messages, the "note" byte is actually the CC number
+                    let value = velocity  // and "velocity" is the CC value
+                    if cc >= 91 && cc <= 98 && value > 0 {
+                        let index = Int(cc) - 91  // CC 91 = index 0 (left), CC 98 = index 7 (right)
+                        DispatchQueue.main.async(qos: .userInteractive) { [weak self] in
+                            self?.onTopButtonPressed?(index)
+                        }
+                    }
+                }
             }
 
             packet = MIDIEventPacketNext(&packet).pointee

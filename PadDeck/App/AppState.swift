@@ -74,17 +74,22 @@ final class AppState {
         }
         midiManager.onSideButtonPressed = { [weak self] index in
             guard let self else { return }
-            print("[SideButton] index=\(index) activeInstrument=\(self.activeInstrument != nil)")
             // Instrument mode: top button exits, all others swallowed
             if self.activeInstrument != nil {
                 if index == 7 {
-                    print("[SideButton] Exiting instrument mode")
                     self.exitInstrumentMode()
                 }
                 return
             }
             guard self.vocalPadPosition != nil else { return }
             self.handleDryWetButton(index: index)
+        }
+        midiManager.onTopButtonPressed = { [weak self] index in
+            guard let self else { return }
+            // Top-right button (index 7, CC 98) exits instrument mode
+            if self.activeInstrument != nil && index == 7 {
+                self.exitInstrumentMode()
+            }
         }
         midiManager.onDeviceConnected = { [weak self] in
             guard let self else { return }
@@ -325,6 +330,10 @@ final class AppState {
         instrumentEngine.stopAllNotes()
         activeInstrument = nil
         midiManager.syncLEDs(with: project, playingPads: audioEngine.activePads)
+        // Turn off top-row LEDs
+        for i in 0..<8 {
+            midiManager.setTopButtonLED(index: i, color: .off)
+        }
         renderDryWetMeter()
     }
 
@@ -340,11 +349,14 @@ final class AppState {
         }
         midiManager.sendBatchLEDs(entries: entries)
 
-        // Side buttons: only top button lit (exit = red)
+        // Exit button: light both top-right (CC 98) and side-top (note 89) red
+        let exitColor = LaunchpadColor(r: 127, g: 20, b: 20)
         for i in 0..<7 {
             midiManager.setSideButtonLED(index: i, color: .off)
+            midiManager.setTopButtonLED(index: i, color: .off)
         }
-        midiManager.setSideButtonLED(index: 7, color: LaunchpadColor(r: 127, g: 20, b: 20))
+        midiManager.setSideButtonLED(index: 7, color: exitColor)
+        midiManager.setTopButtonLED(index: 7, color: exitColor)
     }
 
     // MARK: - Bundle Import

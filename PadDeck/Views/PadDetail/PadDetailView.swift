@@ -16,11 +16,7 @@ struct PadDetailView: View {
     @Environment(AppState.self) private var appState
 
     private var position: GridPosition {
-        guard let pos = appState.selectedPad else {
-            assertionFailure("PadDetailView shown with nil selectedPad")
-            return GridPosition(row: 0, column: 0)
-        }
-        return pos
+        appState.selectedPad ?? GridPosition(row: 0, column: 0)
     }
 
     private var pad: PadConfiguration {
@@ -231,13 +227,13 @@ struct PadDetailView: View {
                                     p.instrumentConfig?.volume = newVol
                                     appState.updatePad(p, at: position)
                                 }
-                            ), in: 0...1)
+                            ), in: 0...2)
                             .tint(accentColor)
 
                             Text("\(Int(instrumentConfig.volume * 100))%")
                                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 38, alignment: .trailing)
+                                .frame(width: 44, alignment: .trailing)
                         }
                     }
 
@@ -398,13 +394,13 @@ struct PadDetailView: View {
                                     p.volume = newVol
                                     appState.updatePad(p, at: position)
                                 }
-                            ), in: 0...1)
+                            ), in: 0...2)
                             .tint(accentColor)
 
                             Text("\(Int(pad.volume * 100))%")
                                 .font(.system(size: 12, weight: .semibold, design: .monospaced))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 38, alignment: .trailing)
+                                .frame(width: 44, alignment: .trailing)
                         }
                     }
 
@@ -650,7 +646,8 @@ struct PadDetailView: View {
         if pad.volume == 0 { return "speaker.slash.fill" }
         if pad.volume < 0.33 { return "speaker.fill" }
         if pad.volume < 0.66 { return "speaker.wave.1.fill" }
-        return "speaker.wave.2.fill"
+        if pad.volume <= 1.0 { return "speaker.wave.2.fill" }
+        return "speaker.wave.3.fill"
     }
 }
 

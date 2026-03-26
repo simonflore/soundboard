@@ -66,9 +66,9 @@ final class InstrumentEngine {
         guard let sampler = samplers[instrument] else { return }
         // masterGain is in dB. Map 0-1 linear to dB.
         if volume <= 0 {
-            sampler.masterGain = -90
+            sampler.overallGain = -90
         } else {
-            sampler.masterGain = 20 * log10(volume)
+            sampler.overallGain = 20 * log10(volume)
         }
     }
 }

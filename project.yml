@@ -40,3 +40,5 @@ targets:
       - package: ZIPFoundation
     entitlements:
       path: PadDeck/PadDeck.entitlements
+    scheme:
+      testTargets: []

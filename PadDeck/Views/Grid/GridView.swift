@@ -3,6 +3,15 @@ import SwiftUI
 struct GridView: View {
     @Environment(AppState.self) private var appState
 
+    #if os(iOS)
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    private var gridSpacing: CGFloat { horizontalSizeClass == .compact ? 3 : 6 }
+    private var gridPadding: CGFloat { horizontalSizeClass == .compact ? 6 : 14 }
+    #else
+    private let gridSpacing: CGFloat = 6
+    private let gridPadding: CGFloat = 14
+    #endif
+
     private var dragHintText: Text {
         #if os(macOS)
         Text(appState.isEditMode ? "drag to rearrange" : "⌥ drag to rearrange")
@@ -12,9 +21,9 @@ struct GridView: View {
     }
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: gridSpacing) {
             ForEach((0..<8).reversed(), id: \.self) { row in
-                HStack(spacing: 6) {
+                HStack(spacing: gridSpacing) {
                     ForEach(0..<8, id: \.self) { col in
                         PadView(position: GridPosition(row: row, column: col))
                     }
@@ -38,7 +47,7 @@ struct GridView: View {
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: appState.activeInstrument != nil)
             }
         }
-        .padding(14)
+        .padding(gridPadding)
         .background(
             ZStack {
                 // Deep dark gradient background
