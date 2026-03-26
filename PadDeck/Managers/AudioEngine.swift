@@ -9,6 +9,11 @@ final class AudioEngine {
 
     private let engine = AVAudioEngine()
     private let mixer = AVAudioMixerNode()
+
+    /// Exposed for InstrumentEngine to attach sampler nodes.
+    var mixerNode: AVAudioMixerNode { mixer }
+    var avAudioEngine: AVAudioEngine { engine }
+
     private var playerNodes: [GridPosition: AVAudioPlayerNode] = [:]
     private let sampleStore: SampleStore
     private var fileCache: [String: AVAudioFile] = [:]
