@@ -29,6 +29,7 @@ struct PadDetailView: View {
 
     private var accentColor: Color {
         if pad.isVocalPad { return .purple }
+        if pad.isInstrumentPad { return pad.color.swiftUIColor }
         return pad.isEmpty ? .blue : pad.color.swiftUIColor
     }
 
@@ -51,6 +52,14 @@ struct PadDetailView: View {
                                     .font(.system(size: 18, weight: .bold, design: .rounded))
                             }
                             .foregroundStyle(.purple)
+                        } else if pad.isInstrumentPad, let config = pad.instrumentConfig {
+                            HStack(spacing: 4) {
+                                Image(systemName: config.instrumentType.iconName)
+                                    .font(.system(size: 14))
+                                Text(config.instrumentType.displayName)
+                                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                            }
+                            .foregroundStyle(accentColor)
                         } else if let sample = pad.sample {
                             Text(sample.name)
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -176,6 +185,87 @@ struct PadDetailView: View {
                                 Image(systemName: "trash")
                                     .font(.system(size: 10))
                                 Text("Remove Vocal")
+                                    .font(.system(size: 12, weight: .medium, design: .rounded))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 7)
+                            .background(Color.red.opacity(0.1))
+                            .foregroundStyle(.red)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.top, 4)
+
+                } else if pad.isInstrumentPad, let instrumentConfig = pad.instrumentConfig {
+                    // Instrument type selector
+                    DetailSection(title: "INSTRUMENT", icon: "pianokeys") {
+                        HStack(spacing: 6) {
+                            ForEach(InstrumentType.allCases) { type in
+                                PlayModeButton(
+                                    mode: type,
+                                    isSelected: instrumentConfig.instrumentType == type,
+                                    accentColor: accentColor
+                                ) {
+                                    var p = pad
+                                    p.instrumentConfig?.instrumentType = type
+                                    p.color = type.defaultColor
+                                    appState.updatePad(p, at: position)
+                                }
+                            }
+                        }
+                    }
+
+                    // Volume
+                    DetailSection(title: "VOLUME", icon: "speaker.wave.2") {
+                        HStack(spacing: 8) {
+                            Image(systemName: "speaker.wave.2.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 16)
+
+                            Slider(value: Binding(
+                                get: { instrumentConfig.volume },
+                                set: { newVol in
+                                    var p = pad
+                                    p.instrumentConfig?.volume = newVol
+                                    appState.updatePad(p, at: position)
+                                }
+                            ), in: 0...1)
+                            .tint(accentColor)
+
+                            Text("\(Int(instrumentConfig.volume * 100))%")
+                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 38, alignment: .trailing)
+                        }
+                    }
+
+                    // Color
+                    DetailSection(title: "COLOR", icon: "paintpalette") {
+                        ColorPickerView(color: Binding(
+                            get: { pad.color },
+                            set: { newColor in
+                                var p = pad
+                                p.color = newColor
+                                appState.updatePad(p, at: position)
+                            }
+                        ))
+                    }
+
+                    // Remove instrument action
+                    HStack {
+                        Spacer()
+                        Button {
+                            var p = pad
+                            p.instrumentConfig = nil
+                            p.color = .off
+                            appState.updatePad(p, at: position)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 10))
+                                Text("Remove Instrument")
                                     .font(.system(size: 12, weight: .medium, design: .rounded))
                             }
                             .padding(.horizontal, 14)
@@ -434,6 +524,45 @@ struct PadDetailView: View {
                         .buttonStyle(.plain)
                     }
 
+                    // Instrument assignment
+                    DetailSection(title: "INSTRUMENT", icon: "pianokeys") {
+                        VStack(spacing: 6) {
+                            ForEach(InstrumentType.allCases) { type in
+                                Button {
+                                    assignInstrumentPad(type)
+                                } label: {
+                                    HStack(spacing: 10) {
+                                        Image(systemName: type.iconName)
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(type.defaultColor.swiftUIColor)
+                                            .frame(width: 20)
+
+                                        Text(type.displayName)
+                                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(.primary)
+
+                                        Spacer()
+
+                                        Image(systemName: "plus.circle.fill")
+                                            .font(.system(size: 14))
+                                            .foregroundStyle(type.defaultColor.swiftUIColor.opacity(0.6))
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 8)
+                                    .background(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.white.opacity(0.03))
+                                    )
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .strokeBorder(Color.white.opacity(0.06), lineWidth: 1)
+                                    )
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+
                     // Factory samples
                     DetailSection(title: "FACTORY SAMPLES", icon: "waveform.circle") {
                         VStack(spacing: 6) {
@@ -505,6 +634,15 @@ struct PadDetailView: View {
         padConfig.vocalConfig = VocalPadConfig()
         padConfig.sample = nil
         padConfig.color = .vocal
+        appState.updatePad(padConfig, at: position)
+    }
+
+    private func assignInstrumentPad(_ type: InstrumentType) {
+        var padConfig = pad
+        padConfig.instrumentConfig = InstrumentConfig(instrumentType: type)
+        padConfig.sample = nil
+        padConfig.vocalConfig = nil
+        padConfig.color = type.defaultColor
         appState.updatePad(padConfig, at: position)
     }
 
