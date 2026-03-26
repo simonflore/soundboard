@@ -1,9 +1,13 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
 
     @State private var newProjectName = ""
+    @State private var exportURL: URL?
+    @State private var isExporting = false
+    @State private var isImportPickerPresented = false
 
     var body: some View {
         TabView {
@@ -149,11 +153,75 @@ struct SettingsView: View {
                                     }
                                 }
                             }
+
+                            Button {
+                                exportProject(meta)
+                            } label: {
+                                Image(systemName: "square.and.arrow.up")
+                            }
+                            .buttonStyle(.borderless)
                         }
+                    }
+                }
+            }
+
+            Section("Import") {
+                Button {
+                    isImportPickerPresented = true
+                } label: {
+                    HStack {
+                        Image(systemName: "square.and.arrow.down")
+                        Text("Import .soundboard File")
                     }
                 }
             }
         }
         .formStyle(.grouped)
+        .fileExporter(
+            isPresented: $isExporting,
+            document: SoundboardExportDocument(url: exportURL),
+            contentType: SoundboardBundle.projectType,
+            defaultFilename: exportURL?.deletingPathExtension().lastPathComponent ?? "Project"
+        ) { result in
+            // Clean up temp file after export
+            if let url = exportURL {
+                try? FileManager.default.removeItem(at: url.deletingLastPathComponent())
+            }
+            exportURL = nil
+        }
+        .fileImporter(
+            isPresented: $isImportPickerPresented,
+            allowedContentTypes: [SoundboardBundle.projectType, .zip],
+            allowsMultipleSelection: false
+        ) { result in
+            guard case .success(let urls) = result, let url = urls.first else { return }
+            appState.handleOpenURL(url)
+        }
+    }
+
+    private func exportProject(_ meta: ProjectMetadata) {
+        guard let project = try? appState.projectManager.load(id: meta.id) else { return }
+        guard let url = try? SoundboardBundle.export(project: project, sampleStore: appState.sampleStore) else { return }
+        exportURL = url
+        isExporting = true
+    }
+}
+
+/// Wrapper for `.fileExporter` — reads the temp ZIP file as raw data.
+struct SoundboardExportDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [SoundboardBundle.projectType] }
+
+    let data: Data
+
+    init(url: URL?) {
+        self.data = (try? Data(contentsOf: url ?? URL(fileURLWithPath: ""))) ?? Data()
+    }
+
+    init(configuration: ReadConfiguration) throws {
+        self.data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
     }
 }
