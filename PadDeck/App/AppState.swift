@@ -24,6 +24,8 @@ final class AppState {
     var showBundleImportAlert = false
     var bundleImportError: String?
     var showBundleImportError = false
+    var saveError: String?
+    var showSaveError = false
 
     var isMicActive = false
     private(set) var vocalPadPosition: GridPosition?
@@ -74,35 +76,12 @@ final class AppState {
         midiManager.onPadReleased = { [weak self] position in
             self?.handlePadRelease(position: position)
         }
-        midiManager.onSideButtonPressed = { [weak self] index in
-            guard let self else { return }
-            print("[SideButton] pressed index=\(index), instrument=\(self.activeInstrument != nil), vocalPos=\(String(describing: self.vocalPadPosition))")
-            // Instrument mode: top button exits, all others swallowed
-            if self.activeInstrument != nil {
-                if index == 7 {
-                    self.showSideButtonIndicator(SideButtonIndicator(
-                        message: "Exit Instrument Mode",
-                        icon: "xmark.circle.fill",
-                        accentColor: .red
-                    ))
-                    self.exitInstrumentMode()
-                }
-                return
-            }
-            guard self.vocalPadPosition != nil else { return }
-            self.handleDryWetButton(index: index)
+        midiManager.onSideButtonPressed = { [weak self] _ in
+            // Side buttons are display-only (dry/wet meter) — no interaction
+            guard self != nil else { return }
         }
         midiManager.onTopButtonPressed = { [weak self] index in
-            guard let self else { return }
-            // Top-right button (index 7, CC 98) exits instrument mode
-            if self.activeInstrument != nil && index == 7 {
-                self.showSideButtonIndicator(SideButtonIndicator(
-                    message: "Exit Instrument Mode",
-                    icon: "xmark.circle.fill",
-                    accentColor: .red
-                ))
-                self.exitInstrumentMode()
-            }
+            self?.handleTopButton(index: index)
         }
         midiManager.onDeviceConnected = { [weak self] in
             guard let self else { return }
@@ -112,6 +91,7 @@ final class AppState {
             } else {
                 self.midiManager.syncLEDs(with: self.project, playingPads: self.audioEngine.activePads)
                 self.renderDryWetMeter()
+                self.renderTopButtonLEDs()
             }
         }
         audioEngine.onPadStopped = { [weak self] position in
@@ -126,7 +106,12 @@ final class AppState {
     }
 
     func saveProject() {
-        try? projectManager.save(project)
+        do {
+            try projectManager.save(project)
+        } catch {
+            saveError = error.localizedDescription
+            showSaveError = true
+        }
     }
 
     private func refreshVocalPadPosition() {
@@ -403,6 +388,106 @@ final class AppState {
         }
     }
 
+    // MARK: - Top Button Handler
+
+    func handleTopButton(index: Int) {
+        // Instrument mode: top-right button exits, all others swallowed
+        if activeInstrument != nil {
+            if index == 7 {
+                showSideButtonIndicator(SideButtonIndicator(
+                    message: "Exit Instrument Mode",
+                    icon: "xmark.circle.fill",
+                    accentColor: .red
+                ))
+                exitInstrumentMode()
+                renderTopButtonLEDs()
+            }
+            return
+        }
+        switch index {
+        case 2: // Left arrow — dry/wet down
+            handleDryWetButton(direction: .down)
+        case 3: // Right arrow — dry/wet up
+            handleDryWetButton(direction: .up)
+        case 4: // Play/Edit toggle
+            isEditMode.toggle()
+            showSideButtonIndicator(SideButtonIndicator(
+                message: isEditMode ? "Edit Mode" : "Play Mode",
+                icon: isEditMode ? "pencil" : "play.fill",
+                accentColor: isEditMode ? .orange : .green
+            ))
+            renderTopButtonLEDs()
+        case 5: // Mic toggle
+            guard vocalPadPosition != nil else { break }
+            isMicActive.toggle()
+            audioEngine.setMicActive(isMicActive)
+            if let pos = vocalPadPosition {
+                if isMicActive {
+                    midiManager.setLEDPulsing(at: pos, colorIndex: 53)
+                } else {
+                    midiManager.setLED(at: pos, color: project.pad(at: pos).color)
+                }
+            }
+            showSideButtonIndicator(SideButtonIndicator(
+                message: isMicActive ? "Mic On" : "Mic Off",
+                icon: isMicActive ? "mic.fill" : "mic.slash",
+                accentColor: isMicActive ? .pink : .gray
+            ))
+            renderTopButtonLEDs()
+        case 6: // Stop All
+            showSideButtonIndicator(SideButtonIndicator(
+                message: "Stop All",
+                icon: "stop.fill",
+                accentColor: .red
+            ))
+            deactivateMic()
+            audioEngine.stopAll()
+            midiManager.syncLEDs(with: project, playingPads: audioEngine.activePads)
+            renderDryWetMeter()
+            renderTopButtonLEDs()
+        case 7: // Record
+            showSideButtonIndicator(SideButtonIndicator(
+                message: "Record",
+                icon: "record.circle",
+                accentColor: .red
+            ))
+            isRecordingPresented = true
+        default:
+            break
+        }
+    }
+
+    func renderTopButtonLEDs() {
+        // 0-1: unused (dim)
+        midiManager.setTopButtonLED(index: 0, color: .off)
+        midiManager.setTopButtonLED(index: 1, color: .off)
+
+        // 2-3: Dry/Wet arrows — blue when vocal pad exists
+        let dryWetColor = vocalPadPosition != nil
+            ? LaunchpadColor(r: 20, g: 60, b: 127)
+            : LaunchpadColor.off
+        midiManager.setTopButtonLED(index: 2, color: dryWetColor)
+        midiManager.setTopButtonLED(index: 3, color: dryWetColor)
+
+        // 4: Play/Edit — green (play) or orange (edit)
+        let modeColor = isEditMode
+            ? LaunchpadColor(r: 127, g: 80, b: 0)
+            : LaunchpadColor(r: 0, g: 127, b: 0)
+        midiManager.setTopButtonLED(index: 4, color: modeColor)
+
+        // 5: Mic — pink when active, dim otherwise
+        let micColor = isMicActive && vocalPadPosition != nil
+            ? LaunchpadColor(r: 127, g: 20, b: 80)
+            : (vocalPadPosition != nil ? LaunchpadColor(r: 40, g: 8, b: 25) : .off)
+        midiManager.setTopButtonLED(index: 5, color: micColor)
+
+        // 6: Stop All — always red
+        midiManager.setTopButtonLED(index: 6, color: LaunchpadColor(r: 127, g: 0, b: 0))
+
+        // 7: Record — always red
+        midiManager.setTopButtonLED(index: 7, color: LaunchpadColor(r: 127, g: 0, b: 0))
+    }
+
     // MARK: - Dry/Wet Scene Buttons
 
     // MARK: - Side Button Indicator
@@ -417,30 +502,29 @@ final class AppState {
         DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
     }
 
-    /// Current dry/wet step (0–6), mapped from the vocal pad's dryWetMix.
-    private var dryWetStep: Int {
+    private enum DryWetDirection { case up, down }
+
+    /// Current dry/wet step (0–8), mapped from the vocal pad's dryWetMix.
+    var dryWetStep: Int {
         guard let pos = vocalPadPosition,
-              let config = project.pad(at: pos).vocalConfig else { return 3 }
-        return Int(round(config.dryWetMix * 6.0))
+              let config = project.pad(at: pos).vocalConfig else { return 4 }
+        return Int(round(config.dryWetMix * 8.0))
     }
 
     private var dryWetSaveWork: DispatchWorkItem?
 
-    private func handleDryWetButton(index: Int) {
-        guard let pos = vocalPadPosition else { print("[DryWet] no vocal pos"); return }
+    private func handleDryWetButton(direction: DryWetDirection) {
+        guard let pos = vocalPadPosition else { return }
         var pad = project.pad(at: pos)
-        guard var config = pad.vocalConfig else { print("[DryWet] no vocalConfig for pad at \(pos)"); return }
+        guard var config = pad.vocalConfig else { return }
 
         var step = dryWetStep
-        if index == 7 { // Up
-            step = min(6, step + 1)
-        } else if index == 6 { // Down
-            step = max(0, step - 1)
-        } else {
-            return // meter LEDs, not interactive
+        switch direction {
+        case .up:   step = min(8, step + 1)
+        case .down: step = max(0, step - 1)
         }
 
-        config.dryWetMix = Float(step) / 6.0
+        config.dryWetMix = Float(step) / 8.0
         pad.vocalConfig = config
         project.setPad(pad, at: pos)
         audioEngine.setVocalDryWet(config.dryWetMix)
@@ -471,25 +555,22 @@ final class AppState {
 
         let step = dryWetStep
 
-        // Bar meter colors: gradient from green (dry) to blue (wet)
+        // Bar meter colors: gradient from green (dry) to blue (wet) — 8 levels
         let meterColors: [LaunchpadColor] = [
-            LaunchpadColor(r: 0, g: 127, b: 20),
-            LaunchpadColor(r: 0, g: 100, b: 60),
+            LaunchpadColor(r: 0, g: 127, b: 10),
+            LaunchpadColor(r: 0, g: 110, b: 40),
+            LaunchpadColor(r: 0, g: 95, b: 65),
             LaunchpadColor(r: 0, g: 80, b: 90),
             LaunchpadColor(r: 0, g: 60, b: 110),
-            LaunchpadColor(r: 0, g: 40, b: 127),
-            LaunchpadColor(r: 0, g: 20, b: 127),
+            LaunchpadColor(r: 0, g: 45, b: 120),
+            LaunchpadColor(r: 0, g: 30, b: 127),
+            LaunchpadColor(r: 0, g: 15, b: 127),
         ]
         let dimColor = LaunchpadColor(r: 8, g: 8, b: 8)
 
-        for i in 0..<6 {
+        for i in 0..<8 {
             let color = i < step ? meterColors[i] : dimColor
             midiManager.setSideButtonLED(index: i, color: color)
         }
-
-        // Up/down buttons: white
-        let controlColor = LaunchpadColor(r: 60, g: 60, b: 60)
-        midiManager.setSideButtonLED(index: 6, color: controlColor)
-        midiManager.setSideButtonLED(index: 7, color: controlColor)
     }
 }

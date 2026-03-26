@@ -63,6 +63,17 @@ struct PadDeckApp: App {
                 } message: {
                     Text(appState.bundleImportError ?? "")
                 }
+                .alert(
+                    "Save Failed",
+                    isPresented: Binding(
+                        get: { appState.showSaveError },
+                        set: { appState.showSaveError = $0 }
+                    )
+                ) {
+                    Button("OK", role: .cancel) {}
+                } message: {
+                    Text(appState.saveError ?? "")
+                }
 
                 if showSplash {
                     SplashScreenView()
