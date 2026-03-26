@@ -266,7 +266,8 @@ final class AudioEngine {
     }
 
     private func loopBufferKey(for sample: Sample) -> String {
-        "\(sample.id.uuidString)_\(sample.trimStart)_\(sample.trimEnd?.description ?? "nil")"
+        let end = sample.trimEnd.map { String(format: "%.6f", $0) } ?? "nil"
+        return "\(sample.id.uuidString)_\(String(format: "%.6f", sample.trimStart))_\(end)"
     }
 
     func preloadLoopBuffer(for pad: PadConfiguration) {
