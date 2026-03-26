@@ -10,6 +10,12 @@ final class AppState {
     var importAlertMessage = ""
     var isEditMode = false
 
+    // Bundle import state
+    var pendingImport: SoundboardBundle.ImportPreview?
+    var showBundleImportAlert = false
+    var bundleImportError: String?
+    var showBundleImportError = false
+
     var isMicActive = false
     private(set) var vocalPadPosition: GridPosition?
     var micGain: Float {
@@ -257,6 +263,41 @@ final class AppState {
         isMicActive = false
         if let pos = vocalPadPosition {
             midiManager.setLED(at: pos, color: project.pad(at: pos).color)
+        }
+    }
+
+    // MARK: - Bundle Import
+
+    func handleOpenURL(_ url: URL) {
+        do {
+            let preview = try SoundboardBundle.previewImport(from: url, projectManager: projectManager)
+            pendingImport = preview
+            if preview.existingProject != nil {
+                showBundleImportAlert = true
+            } else {
+                finalizeBundleImport(mode: .createNew)
+            }
+        } catch {
+            bundleImportError = error.localizedDescription
+            showBundleImportError = true
+        }
+    }
+
+    func finalizeBundleImport(mode: SoundboardBundle.ImportMode) {
+        guard let preview = pendingImport else { return }
+        do {
+            let imported = try SoundboardBundle.finalizeImport(
+                preview: preview,
+                mode: mode,
+                sampleStore: sampleStore,
+                projectManager: projectManager
+            )
+            switchProject(imported)
+            pendingImport = nil
+        } catch {
+            bundleImportError = error.localizedDescription
+            showBundleImportError = true
+            pendingImport = nil
         }
     }
 
