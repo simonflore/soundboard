@@ -3,6 +3,14 @@ import SwiftUI
 struct GridView: View {
     @Environment(AppState.self) private var appState
 
+    private var dragHintText: Text {
+        #if os(macOS)
+        Text(appState.isEditMode ? "drag to rearrange" : "⌥ drag to rearrange")
+        #else
+        Text(appState.isEditMode ? "hold & drag to rearrange" : "")
+        #endif
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             ForEach((0..<8).reversed(), id: \.self) { row in
@@ -14,7 +22,7 @@ struct GridView: View {
             }
         }
         .overlay(alignment: .bottomTrailing) {
-            Text(appState.isEditMode ? "drag to rearrange" : "⌥ drag to rearrange")
+            dragHintText
                 .font(.system(size: 9, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.2))
                 .padding(.trailing, 18)

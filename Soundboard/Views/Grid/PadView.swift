@@ -1,4 +1,8 @@
+#if os(macOS)
 import AppKit
+#else
+import UIKit
+#endif
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -126,6 +130,7 @@ struct PadView: View {
         .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isPressed)
         .animation(.easeOut(duration: 0.15), value: isHovering)
         .contentShape(Rectangle())
+        #if os(macOS)
         .onHover { hovering in
             isHovering = hovering
         }
@@ -136,7 +141,6 @@ struct PadView: View {
                 onPress: {
                     isPressed = true
                     if appState.isEditMode {
-                        // Edit mode: select only, no playback
                         appState.selectedPad = position
                     } else {
                         let velocity = PressureTracker.shared.velocity
@@ -152,6 +156,30 @@ struct PadView: View {
                 onPressStateChanged: { isPressed = $0 }
             )
         }
+        #else
+        .overlay {
+            // Play mode: immediate touch press/release for triggering pads
+            if !appState.isEditMode {
+                PadTouchOverlay(
+                    onPress: {
+                        isPressed = true
+                        appState.handlePadPress(position: position, velocity: PressureTracker.shared.velocity)
+                    },
+                    onRelease: {
+                        isPressed = false
+                        appState.handlePadRelease(position: position)
+                    },
+                    onPressStateChanged: { isPressed = $0 }
+                )
+            }
+        }
+        .onTapGesture {
+            if appState.isEditMode {
+                appState.selectedPad = position
+            }
+        }
+        .draggable(position)
+        #endif
         .onDrop(of: [.json, .fileURL], isTargeted: $isDropTargeted) { providers in
             // Pad swap (GridPosition encoded as JSON via Transferable)
             if let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.json.identifier) }) {
@@ -226,8 +254,9 @@ struct PadView: View {
     }
 }
 
-// MARK: - AppKit mouse handler (avoids SwiftUI gesture conflicts with drag)
+// MARK: - macOS: AppKit mouse handler (avoids SwiftUI gesture conflicts with drag)
 
+#if os(macOS)
 private struct PadMouseOverlay: NSViewRepresentable {
     let position: GridPosition
     let isEditMode: Bool
@@ -340,3 +369,51 @@ final class PadMouseNSView: NSView, NSDraggingSource {
         didPress = false
     }
 }
+
+#else
+
+// MARK: - iOS: UIKit touch handler for immediate press/release
+
+private struct PadTouchOverlay: UIViewRepresentable {
+    let onPress: () -> Void
+    let onRelease: () -> Void
+    let onPressStateChanged: (Bool) -> Void
+
+    func makeUIView(context: Context) -> PadTouchUIView {
+        let view = PadTouchUIView()
+        view.onPress = onPress
+        view.onRelease = onRelease
+        view.onPressStateChanged = onPressStateChanged
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ uiView: PadTouchUIView, context: Context) {
+        uiView.onPress = onPress
+        uiView.onRelease = onRelease
+        uiView.onPressStateChanged = onPressStateChanged
+    }
+}
+
+final class PadTouchUIView: UIView {
+    var onPress: (() -> Void)?
+    var onRelease: (() -> Void)?
+    var onPressStateChanged: ((Bool) -> Void)?
+
+    override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        onPressStateChanged?(true)
+        onPress?()
+    }
+
+    override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        onPressStateChanged?(false)
+        onRelease?()
+    }
+
+    override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        onPressStateChanged?(false)
+        onRelease?()
+    }
+}
+
+#endif

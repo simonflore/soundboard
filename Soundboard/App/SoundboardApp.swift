@@ -12,22 +12,28 @@ struct SoundboardApp: App {
                     appState.setupMIDICallbacks()
                     appState.connectLaunchpad()
 
+                    #if os(macOS)
                     // Force dark appearance for the neon arena aesthetic
                     if let window = NSApplication.shared.windows.first {
                         window.appearance = NSAppearance(named: .darkAqua)
                         window.backgroundColor = NSColor(red: 0.04, green: 0.04, blue: 0.07, alpha: 1.0)
                         window.titlebarAppearsTransparent = true
                     }
+                    #endif
                 }
                 .preferredColorScheme(.dark)
         }
+        #if os(macOS)
         .windowStyle(.titleBar)
         .defaultSize(width: 950, height: 700)
+        #endif
 
+        #if os(macOS)
         Settings {
             SettingsView()
                 .environment(appState)
                 .preferredColorScheme(.dark)
         }
+        #endif
     }
 }

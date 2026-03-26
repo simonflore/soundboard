@@ -16,7 +16,9 @@ struct SettingsView: View {
             projectsTab
                 .tabItem { Label("Projects", systemImage: "folder") }
         }
+        #if os(macOS)
         .frame(width: 450, height: 350)
+        #endif
     }
 
     // MARK: - Audio Tab

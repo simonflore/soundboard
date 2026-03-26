@@ -1,6 +1,6 @@
 # Soundboard
 
-macOS 14+ SwiftUI app for controlling Novation Launchpad controllers as a soundboard.
+Multiplatform (macOS 14+ / iPadOS 17+) SwiftUI app for controlling Novation Launchpad controllers as a soundboard.
 Supports: Launchpad X, Mini MK3, Pro MK3, MK2, and Pro (original).
 
 ## Architecture
@@ -31,7 +31,17 @@ Supports: Launchpad X, Mini MK3, Pro MK3, MK2, and Pro (original).
 - `Views/PadDetail/` — PadDetailView, ColorPickerView, WaveformTrimView
 - `Utilities/` — LaunchpadProtocol, PixelFont, AudioFormats, PressureTracker
 
+## Multiplatform
+
+- Single target with `supportedDestinations: [macOS, iOS]` — no code duplication
+- Platform-specific code is isolated behind `#if os(macOS)` / `#if os(iOS)` in ~5 files
+- macOS: AppKit mouse handler (PadMouseNSView), Force Touch pressure (PressureTracker), NSAppearance, HSplitView, Settings scene
+- iOS: UIKit touch handler (PadTouchUIView), AVAudioSession setup, HStack layout, settings via sheet, `.draggable()` for pad reorder
+- CoreMIDI works on both platforms (iPad connects via USB-C)
+- AudioEngine, MIDIManager, SampleStore, ProjectManager, all Models — fully shared
+
 ## Build
 
-- XcodeGen project (`project.yml`), Swift 5.9, macOS 14.0 deployment target
+- XcodeGen project (`project.yml`), Swift 5.9
+- macOS 14.0 / iPadOS 17.0 deployment targets
 - External dependency: DSWaveformImage v14.0.0+

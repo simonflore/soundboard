@@ -3,6 +3,7 @@ options:
   bundleIdPrefix: com.soundboard
   deploymentTarget:
     macOS: "14.0"
+    iOS: "17.0"
   xcodeVersion: "16.0"
   generateEmptyDirectories: true
 
@@ -14,7 +15,7 @@ packages:
 targets:
   Soundboard:
     type: application
-    platform: macOS
+    supportedDestinations: [macOS, iOS]
     sources:
       - path: Soundboard
     settings:
@@ -26,6 +27,8 @@ targets:
         CODE_SIGN_ENTITLEMENTS: Soundboard/Soundboard.entitlements
         SWIFT_VERSION: "5.9"
         MACOSX_DEPLOYMENT_TARGET: "14.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "17.0"
+        SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD: false
     dependencies:
       - package: DSWaveformImage
         product: DSWaveformImage

@@ -1,3 +1,4 @@
+#if os(macOS)
 import AppKit
 
 /// Captures Force Touch pressure from the MacBook trackpad.
@@ -40,3 +41,14 @@ final class PressureTracker {
         return UInt8(max(1, min(127, curved * 127.0)))
     }
 }
+
+#else
+
+/// Stub for platforms without Force Touch (iOS/iPadOS).
+/// Always returns full velocity since touch pressure isn't available.
+final class PressureTracker {
+    static let shared = PressureTracker()
+    var velocity: UInt8 { 127 }
+}
+
+#endif

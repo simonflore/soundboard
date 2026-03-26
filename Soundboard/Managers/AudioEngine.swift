@@ -247,6 +247,16 @@ final class AudioEngine {
     // MARK: - Private
 
     private func setupEngine() {
+        #if os(iOS)
+        do {
+            let session = AVAudioSession.sharedInstance()
+            try session.setCategory(.playAndRecord, options: [.defaultToSpeaker, .allowBluetooth])
+            try session.setActive(true)
+        } catch {
+            print("AVAudioSession setup failed: \(error)")
+        }
+        #endif
+
         engine.attach(mixer)
         engine.connect(mixer, to: engine.mainMixerNode, format: nil)
         setupMicChain()
