@@ -121,31 +121,33 @@ struct PadDetailView: View {
                         }
                     }
 
-                    // Dry/Wet slider
-                    DetailSection(title: "DRY / WET", icon: "slider.horizontal.3") {
-                        HStack(spacing: 8) {
-                            Text("Dry")
-                                .font(.system(size: 10, weight: .medium, design: .rounded))
-                                .foregroundStyle(.secondary)
+                    // Dry/Wet slider (not available for pitch shift)
+                    if appState.audioEngine.activeEffectSupportsDryWet {
+                        DetailSection(title: "DRY / WET", icon: "slider.horizontal.3") {
+                            HStack(spacing: 8) {
+                                Text("Dry")
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.secondary)
 
-                            Slider(value: Binding(
-                                get: { vocalConfig.dryWetMix },
-                                set: { newVal in
-                                    var p = pad
-                                    p.vocalConfig?.dryWetMix = newVal
-                                    appState.updatePad(p, at: position)
-                                }
-                            ), in: 0...1)
-                            .tint(accentColor)
+                                Slider(value: Binding(
+                                    get: { vocalConfig.dryWetMix },
+                                    set: { newVal in
+                                        var p = pad
+                                        p.vocalConfig?.dryWetMix = newVal
+                                        appState.updatePad(p, at: position)
+                                    }
+                                ), in: 0...1)
+                                .tint(accentColor)
 
-                            Text("Wet")
-                                .font(.system(size: 10, weight: .medium, design: .rounded))
-                                .foregroundStyle(.secondary)
+                                Text("Wet")
+                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                                    .foregroundStyle(.secondary)
 
-                            Text("\(Int(vocalConfig.dryWetMix * 100))%")
-                                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 38, alignment: .trailing)
+                                Text("\(Int(vocalConfig.dryWetMix * 100))%")
+                                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .frame(width: 38, alignment: .trailing)
+                            }
                         }
                     }
 

@@ -120,11 +120,13 @@ struct SettingsView: View {
                         guard !newProjectName.isEmpty else { return }
                         let newProject = Project(name: newProjectName)
                         try? appState.projectManager.save(newProject)
+                        appState.deactivateMic()
                         appState.project = newProject
                         appState.midiManager.syncLEDs(
                             with: appState.project,
                             playingPads: appState.audioEngine.activePads
                         )
+                        appState.renderDryWetMeter()
                         newProjectName = ""
                     }
                     .disabled(newProjectName.isEmpty)
@@ -147,6 +149,7 @@ struct SettingsView: View {
                             } else {
                                 Button("Load") {
                                     if let loaded = try? appState.projectManager.load(id: meta.id) {
+                                        appState.deactivateMic()
                                         appState.audioEngine.stopAll()
                                         appState.project = loaded
                                         appState.selectedPad = nil
@@ -154,6 +157,7 @@ struct SettingsView: View {
                                             with: appState.project,
                                             playingPads: appState.audioEngine.activePads
                                         )
+                                        appState.renderDryWetMeter()
                                     }
                                 }
                             }

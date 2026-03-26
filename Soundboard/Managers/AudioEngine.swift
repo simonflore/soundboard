@@ -22,7 +22,7 @@ final class AudioEngine {
     private let vocalPitchNode = AVAudioUnitTimePitch()
     private let distortionNode = AVAudioUnitDistortion()
     private var activeVocalEffect: VocalEffect = .reverb
-    var globalMicGain: Float = 1.0
+    private(set) var globalMicGain: Float = 1.0
 
     private var recordingFile: AVAudioFile?
     private var recordingURL: URL?
@@ -136,14 +136,13 @@ final class AudioEngine {
 
     func startRecording() throws -> URL {
         if isRecording {
-            engine.inputNode.removeTap(onBus: 0)
+            micGainNode.removeTap(onBus: 0)
             recordingFile = nil
             isRecording = false
         }
 
         let url = sampleStore.generateRecordingURL()
-        let inputNode = engine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
+        let inputFormat = micGainNode.outputFormat(forBus: 0)
 
         // On-disk format: 16-bit PCM mono WAV (compatible with DSWaveformImage)
         let outputSettings: [String: Any] = [
@@ -167,8 +166,8 @@ final class AudioEngine {
         self.recordingFile = file
         self.recordingURL = url
 
-        // Install tap with mono float32 format — the engine handles
-        // stereo→mono downmix so buffers match the file's processingFormat.
+        // Tap micGainNode (not inputNode) to avoid conflicting with the
+        // vocal mic chain connection on inputNode bus 0.
         let tapFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: inputFormat.sampleRate,
@@ -176,7 +175,7 @@ final class AudioEngine {
             interleaved: false
         )
 
-        inputNode.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { buffer, _ in
+        micGainNode.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { buffer, _ in
             try? file.write(from: buffer)
         }
 
@@ -185,7 +184,7 @@ final class AudioEngine {
     }
 
     func stopRecording() -> URL? {
-        engine.inputNode.removeTap(onBus: 0)
+        micGainNode.removeTap(onBus: 0)
         recordingFile = nil
         isRecording = false
         return recordingURL
@@ -214,6 +213,11 @@ final class AudioEngine {
         activeVocalEffect = effect
     }
 
+    /// AVAudioUnitTimePitch has no wetDryMix — pitch shift is always 100% wet.
+    var activeEffectSupportsDryWet: Bool {
+        activeVocalEffect != .pitchShift
+    }
+
     func setVocalDryWet(_ value: Float) {
         let node = effectNode(for: activeVocalEffect)
         if let reverb = node as? AVAudioUnitReverb {
@@ -223,6 +227,7 @@ final class AudioEngine {
         } else if let dist = node as? AVAudioUnitDistortion {
             dist.wetDryMix = value * 100
         }
+        // pitchShift: no wetDryMix available — always 100% wet
     }
 
     func setMicGain(_ gain: Float) {
