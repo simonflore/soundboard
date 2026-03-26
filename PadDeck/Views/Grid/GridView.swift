@@ -47,6 +47,14 @@ struct GridView: View {
                 .animation(.spring(response: 0.3, dampingFraction: 0.8), value: appState.activeInstrument != nil)
             }
         }
+        .overlay(alignment: .trailing) {
+            if let indicator = appState.sideButtonIndicator {
+                SideButtonIndicatorView(indicator: indicator)
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .padding(.trailing, 14)
+            }
+        }
+        .animation(.spring(response: 0.3, dampingFraction: 0.8), value: appState.sideButtonIndicator)
         .padding(gridPadding)
         .background(
             ZStack {

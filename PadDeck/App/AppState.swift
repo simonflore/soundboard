@@ -16,6 +16,8 @@ final class AppState {
     var importAlertMessage = ""
     var isEditMode = false
     var activeInstrument: ActiveInstrument?
+    var sideButtonIndicator: SideButtonIndicator?
+    private var indicatorDismissWork: DispatchWorkItem?
 
     // Bundle import state
     var pendingImport: PadDeckBundle.ImportPreview?
@@ -77,6 +79,11 @@ final class AppState {
             // Instrument mode: top button exits, all others swallowed
             if self.activeInstrument != nil {
                 if index == 7 {
+                    self.showSideButtonIndicator(SideButtonIndicator(
+                        message: "Exit Instrument Mode",
+                        icon: "xmark.circle.fill",
+                        accentColor: .red
+                    ))
                     self.exitInstrumentMode()
                 }
                 return
@@ -158,7 +165,6 @@ final class AppState {
 
         // Vocal pad: gate mic instead of playing a sample
         if pad.isVocalPad, let vocalConfig = pad.vocalConfig {
-            selectedPad = position
             switch vocalConfig.activationMode {
             case .hold:
                 audioEngine.setMicActive(true)
@@ -184,7 +190,6 @@ final class AppState {
             if audioEngine.isPlaying(at: position) {
                 audioEngine.stop(at: position)
                 midiManager.setLED(at: position, color: pad.color)
-                selectedPad = position
                 return
             } else {
                 audioEngine.play(pad: pad, velocity: velocity)
@@ -195,15 +200,13 @@ final class AppState {
             if audioEngine.isPlaying(at: position) {
                 audioEngine.stop(at: position)
                 midiManager.setLED(at: position, color: pad.color)
-                selectedPad = position
                 return
             } else {
                 audioEngine.play(pad: pad, velocity: velocity)
             }
         }
 
-        // LEDs and UI after audio is already playing
-        selectedPad = position
+        // LEDs after audio is already playing
         midiManager.setLED(at: position, color: .playing)
 
         if let name = pad.sample?.name {
@@ -396,6 +399,18 @@ final class AppState {
 
     // MARK: - Dry/Wet Scene Buttons
 
+    // MARK: - Side Button Indicator
+
+    private func showSideButtonIndicator(_ indicator: SideButtonIndicator, duration: Double = 1.8) {
+        sideButtonIndicator = indicator
+        indicatorDismissWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            self?.sideButtonIndicator = nil
+        }
+        indicatorDismissWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
+    }
+
     /// Current dry/wet step (0–6), mapped from the vocal pad's dryWetMix.
     private var dryWetStep: Int {
         guard let pos = vocalPadPosition,
@@ -424,6 +439,13 @@ final class AppState {
         project.setPad(pad, at: pos)
         audioEngine.setVocalDryWet(config.dryWetMix)
         renderDryWetMeter()
+
+        let percentage = Int(round(config.dryWetMix * 100))
+        showSideButtonIndicator(SideButtonIndicator(
+            message: "Dry/Wet: \(percentage)%",
+            icon: "slider.horizontal.3",
+            accentColor: Color(red: 0.2, green: 0.6, blue: 1.0)
+        ))
 
         // Debounce save — rapid button presses only persist once settled
         dryWetSaveWork?.cancel()

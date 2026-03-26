@@ -159,35 +159,15 @@ struct ContentView: View {
     private var fullButtons: some View {
         HStack(spacing: 12) {
             // Play / Edit toggle
-            Button {
-                if appState.activeInstrument != nil {
-                    appState.exitInstrumentMode()
+            PlayEditToggle(isEditMode: Binding(
+                get: { appState.isEditMode },
+                set: { newValue in
+                    if appState.activeInstrument != nil {
+                        appState.exitInstrumentMode()
+                    }
+                    appState.isEditMode = newValue
                 }
-                appState.isEditMode.toggle()
-            } label: {
-                HStack(spacing: 5) {
-                    Image(systemName: appState.isEditMode ? "pencil" : "play.fill")
-                        .font(.system(size: 12))
-                    Text(appState.isEditMode ? "Edit" : "Play")
-                        .font(.system(size: 12, weight: .bold, design: .rounded))
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 7)
-                .background(
-                    appState.isEditMode
-                        ? Color.orange.opacity(0.35)
-                        : Color.white.opacity(0.05)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 7)
-                        .strokeBorder(
-                            appState.isEditMode ? Color.orange.opacity(0.5) : Color.white.opacity(0.08),
-                            lineWidth: 1
-                        )
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 7))
-            }
-            .buttonStyle(.plain)
+            ))
 
             // Stop All button
             Button {
@@ -268,16 +248,15 @@ struct ContentView: View {
     #if os(iOS)
     private var compactButtons: some View {
         HStack(spacing: 8) {
-            compactButton(
-                icon: appState.isEditMode ? "pencil" : "play.fill",
-                isActive: appState.isEditMode,
-                activeColor: .orange
-            ) {
-                if appState.activeInstrument != nil {
-                    appState.exitInstrumentMode()
+            PlayEditToggle(isEditMode: Binding(
+                get: { appState.isEditMode },
+                set: { newValue in
+                    if appState.activeInstrument != nil {
+                        appState.exitInstrumentMode()
+                    }
+                    appState.isEditMode = newValue
                 }
-                appState.isEditMode.toggle()
-            }
+            ), compact: true)
 
             compactButton(icon: "stop.fill") {
                 if appState.activeInstrument != nil {
