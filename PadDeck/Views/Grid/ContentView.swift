@@ -87,6 +87,9 @@ struct ContentView: View {
 
                     // Stop All button
                     Button {
+                        if appState.activeInstrument != nil {
+                            appState.exitInstrumentMode()
+                        }
                         appState.deactivateMic()
                         appState.audioEngine.stopAll()
                         appState.midiManager.syncLEDs(with: appState.project, playingPads: appState.audioEngine.activePads)
