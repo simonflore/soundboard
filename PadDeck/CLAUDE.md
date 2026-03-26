@@ -25,8 +25,8 @@ Supports: Launchpad X, Mini MK3, Pro MK3, MK2, and Pro (original).
 ## Project Structure
 
 - `App/` — PadDeckApp entry point, AppState
-- `Managers/` — MIDIManager, AudioEngine, SampleStore, ProjectManager, TextScroller
-- `Models/` — GridPosition, PadConfiguration, Project, Sample, LaunchpadColor, LaunchpadModel, PlayMode
+- `Managers/` — MIDIManager, AudioEngine, InstrumentEngine, SampleStore, ProjectManager, TextScroller
+- `Models/` — GridPosition, PadConfiguration, Project, Sample, LaunchpadColor, LaunchpadModel, PlayMode, InstrumentType, InstrumentConfig, NoteLayout
 - `Views/Grid/` — ContentView, GridView, PadView
 - `Views/PadDetail/` — PadDetailView, ColorPickerView, WaveformTrimView
 - `Utilities/` — LaunchpadProtocol, PixelFont, AudioFormats, PressureTracker
@@ -47,6 +47,17 @@ Supports: Launchpad X, Mini MK3, Pro MK3, MK2, and Pro (original).
 - `PadDeckBundle` handles export (ZIP creation) and import (unzip + file copy)
 - Import with name collision offers "Replace" or "Keep Both"
 - ZIPFoundation dependency for cross-platform ZIP handling
+
+## Playable Instruments
+
+- 5 instrument types: Piano, Drums, Marimba, Synth Lead, Synth Pad
+- `InstrumentEngine` manages `AVAudioUnitSampler` instances, one per instrument type
+- Samplers connect to `AudioEngine.mixerNode` (exposed read-only for this purpose)
+- SoundFont (.sf2) files bundled in `PadDeck/Resources/SoundFonts/`
+- `InstrumentType` enum defines note layouts via `NoteLayout` (GridPosition → MIDI note mapping + LED colors)
+- Instrument mode: `AppState.activeInstrument` reroutes pad press/release to `InstrumentEngine.playNote`/`stopNote`
+- Side button 7 (top) exits instrument mode
+- Grid layouts: Piano/Marimba = chromatic (1 octave/row), Drums = 4×4 quadrant, Synth Lead/Pad = isomorphic 4ths (+5 semitones/row)
 
 ## Build
 
