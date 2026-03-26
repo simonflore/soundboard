@@ -76,6 +76,7 @@ final class AppState {
         }
         midiManager.onSideButtonPressed = { [weak self] index in
             guard let self else { return }
+            print("[SideButton] pressed index=\(index), instrument=\(self.activeInstrument != nil), vocalPos=\(String(describing: self.vocalPadPosition))")
             // Instrument mode: top button exits, all others swallowed
             if self.activeInstrument != nil {
                 if index == 7 {
@@ -95,6 +96,11 @@ final class AppState {
             guard let self else { return }
             // Top-right button (index 7, CC 98) exits instrument mode
             if self.activeInstrument != nil && index == 7 {
+                self.showSideButtonIndicator(SideButtonIndicator(
+                    message: "Exit Instrument Mode",
+                    icon: "xmark.circle.fill",
+                    accentColor: .red
+                ))
                 self.exitInstrumentMode()
             }
         }
@@ -402,10 +408,10 @@ final class AppState {
     // MARK: - Side Button Indicator
 
     private func showSideButtonIndicator(_ indicator: SideButtonIndicator, duration: Double = 1.8) {
-        sideButtonIndicator = indicator
+        withAnimation { sideButtonIndicator = indicator }
         indicatorDismissWork?.cancel()
         let work = DispatchWorkItem { [weak self] in
-            self?.sideButtonIndicator = nil
+            withAnimation { self?.sideButtonIndicator = nil }
         }
         indicatorDismissWork = work
         DispatchQueue.main.asyncAfter(deadline: .now() + duration, execute: work)
@@ -421,9 +427,9 @@ final class AppState {
     private var dryWetSaveWork: DispatchWorkItem?
 
     private func handleDryWetButton(index: Int) {
-        guard let pos = vocalPadPosition else { return }
+        guard let pos = vocalPadPosition else { print("[DryWet] no vocal pos"); return }
         var pad = project.pad(at: pos)
-        guard var config = pad.vocalConfig else { return }
+        guard var config = pad.vocalConfig else { print("[DryWet] no vocalConfig for pad at \(pos)"); return }
 
         var step = dryWetStep
         if index == 7 { // Up
