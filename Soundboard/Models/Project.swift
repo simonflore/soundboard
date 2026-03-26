@@ -67,4 +67,17 @@ struct Project: Codable, Identifiable, Sendable {
         pads[b.id] = PadConfiguration(position: b, sample: padA.sample, color: padA.color, playMode: padA.playMode, volume: padA.volume, emoji: padA.emoji, vocalConfig: padA.vocalConfig)
         modifiedAt = Date()
     }
+
+    /// Creates a copy of a project with a new UUID and name, for "Keep Both" import.
+    static func copyForImport(from source: Project, newName: String) -> Project {
+        var copy = source
+        // Force new identity by re-encoding with modified fields
+        var pads = source.pads
+        // Pads keep their samples as-is (filenames stay the same)
+        copy = Project(name: newName)
+        copy.pads = pads
+        copy.createdAt = source.createdAt
+        copy.modifiedAt = Date()
+        return copy
+    }
 }
