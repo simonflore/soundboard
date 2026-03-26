@@ -3,15 +3,6 @@ import SwiftUI
 struct ContentView: View {
     @Environment(AppState.self) private var appState
 
-    private var isXYMode: Bool {
-        if case .xyPad = appState.mode { return true }
-        return false
-    }
-
-    private var canEnterXY: Bool {
-        isXYMode || appState.canEnterXYMode
-    }
-
     var body: some View {
         HSplitView {
             VStack(spacing: 0) {
@@ -66,40 +57,9 @@ struct ContentView: View {
                         }
                         .buttonStyle(.plain)
 
-                        // XY Performance Pad toggle
-                        Button {
-                            appState.toggleXYMode()
-                        } label: {
-                            HStack(spacing: 5) {
-                                Image(systemName: "slider.horizontal.2.square")
-                                    .font(.system(size: 12))
-                                    .symbolRenderingMode(.hierarchical)
-                                Text("XY Pad")
-                                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 7)
-                            .background(
-                                isXYMode
-                                    ? Color.blue.opacity(0.35)
-                                    : Color.white.opacity(0.05)
-                            )
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 7)
-                                    .strokeBorder(
-                                        isXYMode ? Color.blue.opacity(0.5) : Color.white.opacity(0.08),
-                                        lineWidth: 1
-                                    )
-                            )
-                            .clipShape(RoundedRectangle(cornerRadius: 7))
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!canEnterXY)
-                        .opacity(canEnterXY ? 1.0 : 0.35)
-
                         // Stop All button
                         Button {
-                            if case .xyPad = appState.mode { appState.exitXYMode() }
+                            appState.deactivateMic()
                             appState.audioEngine.stopAll()
                             appState.midiManager.syncLEDs(with: appState.project, playingPads: appState.audioEngine.activePads)
                         } label: {

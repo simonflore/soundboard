@@ -10,10 +10,18 @@ final class AudioEngine {
     private let engine = AVAudioEngine()
     private let mixer = AVAudioMixerNode()
     private var playerNodes: [GridPosition: AVAudioPlayerNode] = [:]
-    private var timePitchNodes: [GridPosition: AVAudioUnitTimePitch] = [:]
     private let sampleStore: SampleStore
     private var fileCache: [String: AVAudioFile] = [:]
     private var loopBufferCache: [String: AVAudioPCMBuffer] = [:]
+
+    // Vocal mic chain
+    private let micGainNode = AVAudioMixerNode()
+    private let reverbNode = AVAudioUnitReverb()
+    private let delayNode = AVAudioUnitDelay()
+    private let vocalPitchNode = AVAudioUnitTimePitch()
+    private let distortionNode = AVAudioUnitDistortion()
+    private var activeVocalEffect: VocalEffect = .reverb
+    private(set) var globalMicGain: Float = 1.0
 
     private var recordingFile: AVAudioFile?
     private var recordingURL: URL?
@@ -95,44 +103,14 @@ final class AudioEngine {
 
     func stop(at position: GridPosition) {
         playerNodes[position]?.stop()
-        timePitchNodes[position]?.reset()
         activePads.remove(position)
     }
 
     func stopAll() {
-        for (pos, player) in playerNodes {
+        for (_, player) in playerNodes {
             player.stop()
-            timePitchNodes[pos]?.reset()
-            activePads.remove(pos)
         }
-    }
-
-    /// Set pitch in cents (-2400 to +2400). 0 = normal, -1200 = -1 octave, +1200 = +1 octave.
-    func setPitch(at position: GridPosition, cents: Float) {
-        timePitchNodes[position]?.pitch = cents
-    }
-
-    /// Set playback rate (0.25 to 4.0). 1.0 = normal speed.
-    func setRate(at position: GridPosition, rate: Float) {
-        timePitchNodes[position]?.rate = rate
-    }
-
-    /// Set player volume (0.0 to 1.0) for XY volume control.
-    func setVolume(at position: GridPosition, volume: Float) {
-        playerNodes[position]?.volume = volume
-    }
-
-    /// Reset pitch and rate to defaults.
-    func resetEffects(at position: GridPosition) {
-        timePitchNodes[position]?.pitch = 0
-        timePitchNodes[position]?.rate = 1.0
-    }
-
-    func resetAllEffects() {
-        for (_, node) in timePitchNodes {
-            node.pitch = 0
-            node.rate = 1.0
-        }
+        activePads.removeAll()
     }
 
     func isPlaying(at position: GridPosition) -> Bool {
@@ -155,14 +133,13 @@ final class AudioEngine {
 
     func startRecording() throws -> URL {
         if isRecording {
-            engine.inputNode.removeTap(onBus: 0)
+            micGainNode.removeTap(onBus: 0)
             recordingFile = nil
             isRecording = false
         }
 
         let url = sampleStore.generateRecordingURL()
-        let inputNode = engine.inputNode
-        let inputFormat = inputNode.outputFormat(forBus: 0)
+        let inputFormat = micGainNode.outputFormat(forBus: 0)
 
         // On-disk format: 16-bit PCM mono WAV (compatible with DSWaveformImage)
         let outputSettings: [String: Any] = [
@@ -186,8 +163,8 @@ final class AudioEngine {
         self.recordingFile = file
         self.recordingURL = url
 
-        // Install tap with mono float32 format — the engine handles
-        // stereo→mono downmix so buffers match the file's processingFormat.
+        // Tap micGainNode (not inputNode) to avoid conflicting with the
+        // vocal mic chain connection on inputNode bus 0.
         let tapFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
             sampleRate: inputFormat.sampleRate,
@@ -195,7 +172,7 @@ final class AudioEngine {
             interleaved: false
         )
 
-        inputNode.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { buffer, _ in
+        micGainNode.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { buffer, _ in
             try? file.write(from: buffer)
         }
 
@@ -204,10 +181,67 @@ final class AudioEngine {
     }
 
     func stopRecording() -> URL? {
-        engine.inputNode.removeTap(onBus: 0)
+        micGainNode.removeTap(onBus: 0)
         recordingFile = nil
         isRecording = false
         return recordingURL
+    }
+
+    // MARK: - Vocal Mic
+
+    func setMicActive(_ active: Bool) {
+        micGainNode.volume = active ? globalMicGain : 0
+    }
+
+    func switchVocalEffect(to effect: VocalEffect) {
+        guard effect != activeVocalEffect else { return }
+
+        let oldNode = effectNode(for: activeVocalEffect)
+        let newNode = effectNode(for: effect)
+
+        // Disconnect old: micGainNode → oldNode → mixer
+        engine.disconnectNodeOutput(micGainNode)
+        engine.disconnectNodeOutput(oldNode)
+
+        // Connect new: micGainNode → newNode → mixer
+        engine.connect(micGainNode, to: newNode, format: nil)
+        engine.connect(newNode, to: mixer, format: nil)
+
+        activeVocalEffect = effect
+    }
+
+    /// AVAudioUnitTimePitch has no wetDryMix — pitch shift is always 100% wet.
+    var activeEffectSupportsDryWet: Bool {
+        activeVocalEffect != .pitchShift
+    }
+
+    func setVocalDryWet(_ value: Float) {
+        let node = effectNode(for: activeVocalEffect)
+        if let reverb = node as? AVAudioUnitReverb {
+            reverb.wetDryMix = value * 100
+        } else if let delay = node as? AVAudioUnitDelay {
+            delay.wetDryMix = value * 100
+        } else if let dist = node as? AVAudioUnitDistortion {
+            dist.wetDryMix = value * 100
+        }
+        // pitchShift: no wetDryMix available — always 100% wet
+    }
+
+    func setMicGain(_ gain: Float) {
+        globalMicGain = gain
+        // Update live volume if mic is currently unmuted
+        if micGainNode.volume > 0 {
+            micGainNode.volume = gain
+        }
+    }
+
+    private func effectNode(for effect: VocalEffect) -> AVAudioNode {
+        switch effect {
+        case .reverb: reverbNode
+        case .delay: delayNode
+        case .pitchShift: vocalPitchNode
+        case .distortion: distortionNode
+        }
     }
 
     // MARK: - Private
@@ -215,6 +249,7 @@ final class AudioEngine {
     private func setupEngine() {
         engine.attach(mixer)
         engine.connect(mixer, to: engine.mainMixerNode, format: nil)
+        setupMicChain()
         do {
             try engine.start()
             isEngineRunning = true
@@ -223,16 +258,45 @@ final class AudioEngine {
         }
     }
 
+    private func setupMicChain() {
+        // Configure effect defaults
+        reverbNode.loadFactoryPreset(.largeHall2)
+        reverbNode.wetDryMix = 50
+
+        delayNode.delayTime = 0.3
+        delayNode.feedback = 30
+        delayNode.lowPassCutoff = 15000
+        delayNode.wetDryMix = 50
+
+        vocalPitchNode.pitch = 1200 // +1 octave
+
+        distortionNode.loadFactoryPreset(.speechWaves)
+        distortionNode.wetDryMix = 50
+
+        // Attach all nodes (but only connect the active effect)
+        engine.attach(micGainNode)
+        engine.attach(reverbNode)
+        engine.attach(delayNode)
+        engine.attach(vocalPitchNode)
+        engine.attach(distortionNode)
+
+        micGainNode.volume = 0 // Start muted
+
+        // Connect: inputNode → micGainNode → reverbNode (default) → mixer
+        let inputFormat = engine.inputNode.outputFormat(forBus: 0)
+        engine.connect(engine.inputNode, to: micGainNode, format: inputFormat)
+        engine.connect(micGainNode, to: reverbNode, format: nil)
+        engine.connect(reverbNode, to: mixer, format: nil)
+
+        activeVocalEffect = .reverb
+    }
+
     private func playerNode(for position: GridPosition) -> AVAudioPlayerNode {
         if let existing = playerNodes[position] { return existing }
         let node = AVAudioPlayerNode()
-        let timePitch = AVAudioUnitTimePitch()
         engine.attach(node)
-        engine.attach(timePitch)
-        engine.connect(node, to: timePitch, format: nil)
-        engine.connect(timePitch, to: mixer, format: nil)
+        engine.connect(node, to: mixer, format: nil)
         playerNodes[position] = node
-        timePitchNodes[position] = timePitch
         return node
     }
 

@@ -194,43 +194,6 @@ final class MIDIManager {
         sendSysEx(proto.rgbLEDMessage(note: note, r: color.r, g: color.g, b: color.b))
     }
 
-    /// Render XY performance grid: X = pentatonic notes (colored per scale degree), Y = volume (dim→bright).
-    /// Cursor position gets a white highlight.
-    func renderXYGrid(cursor: GridPosition?) {
-        guard let proto = lpProtocol else { return }
-
-        // Colors per pentatonic column: blue→cyan→green→yellow→orange, repeating for octave
-        let noteColors: [(r: UInt8, g: UInt8, b: UInt8)] = [
-            (0, 20, 127),   // C  — blue
-            (0, 80, 127),   // D  — cyan
-            (0, 127, 40),   // E  — green
-            (100, 127, 0),  // G  — yellow
-            (127, 60, 0),   // A  — orange
-            (0, 20, 127),   // C' — blue
-            (0, 80, 127),   // D' — cyan
-            (0, 127, 40),   // E' — green
-        ]
-
-        var entries: [(note: UInt8, r: UInt8, g: UInt8, b: UInt8)] = []
-        for row in 0..<8 {
-            // Y brightness: row 0 = dim (volume low), row 7 = bright (volume high)
-            let yBrightness = 0.2 + (Float(row) / 7.0) * 0.8
-            for col in 0..<8 {
-                let pos = GridPosition(row: row, column: col)
-                if pos == cursor {
-                    entries.append((note: pos.midiNote, r: 127, g: 127, b: 127))
-                    continue
-                }
-                let base = noteColors[col]
-                let r = UInt8(min(127, Float(base.r) * yBrightness))
-                let g = UInt8(min(127, Float(base.g) * yBrightness))
-                let b = UInt8(min(127, Float(base.b) * yBrightness))
-                entries.append((note: pos.midiNote, r: r, g: g, b: b))
-            }
-        }
-        sendSysEx(proto.batchRGBMessage(entries: entries))
-    }
-
     // MARK: - Side Button Mapping
 
     /// Right-column side button notes: 19, 29, 39, 49, 59, 69, 79, 89.
