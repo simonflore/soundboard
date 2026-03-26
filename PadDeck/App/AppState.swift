@@ -1,7 +1,7 @@
 import Foundation
 import SwiftUI
 
-struct ActiveInstrument {
+struct ActiveInstrument: Sendable {
     let type: InstrumentType
     let sourcePosition: GridPosition
 }
