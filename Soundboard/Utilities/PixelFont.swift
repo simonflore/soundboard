@@ -6,7 +6,7 @@ import Foundation
 enum PixelFont {
     /// Get the glyph columns for a character. Returns 3-5 columns of 8 bools each.
     static func glyph(for char: Character) -> [[Bool]] {
-        let pattern = glyphPatterns[char] ?? glyphPatterns["?"]!
+        let pattern = glyphPatterns[char] ?? glyphPatterns["?"] ?? [[false, false, false, false, false]]
         return pattern.map { col in
             // Center the 5-row glyph in the 8-row grid (offset by 1 from top)
             var column = Array(repeating: false, count: 8)
