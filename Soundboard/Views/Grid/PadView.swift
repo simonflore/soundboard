@@ -241,7 +241,7 @@ private struct PadMouseOverlay: NSViewRepresentable {
 }
 
 final class PadMouseNSView: NSView, NSDraggingSource {
-    var position: GridPosition!
+    var position: GridPosition = GridPosition(row: 0, column: 0)
     var isEditMode = false
     var onPress: (() -> Void)?
     var onRelease: (() -> Void)?
@@ -300,7 +300,7 @@ final class PadMouseNSView: NSView, NSDraggingSource {
 
         isDragSession = true
 
-        let data = try! JSONEncoder().encode(position!)
+        guard let data = try? JSONEncoder().encode(position) else { return }
         let pbItem = NSPasteboardItem()
         pbItem.setData(data, forType: NSPasteboard.PasteboardType(UTType.json.identifier))
 
