@@ -1,7 +1,13 @@
 import Foundation
 import SwiftUI
 
+struct ActiveInstrument {
+    let type: InstrumentType
+    let sourcePosition: GridPosition
+}
+
 @Observable
+@MainActor
 final class AppState {
     var project: Project
     var selectedPad: GridPosition?
@@ -9,6 +15,7 @@ final class AppState {
     var showImportAlert = false
     var importAlertMessage = ""
     var isEditMode = false
+    var activeInstrument: ActiveInstrument?
 
     // Bundle import state
     var pendingImport: PadDeckBundle.ImportPreview?
@@ -31,6 +38,7 @@ final class AppState {
     let sampleStore: SampleStore
     let projectManager: ProjectManager
     let textScroller: TextScroller
+    let instrumentEngine: InstrumentEngine
 
     init() {
         UserDefaults.standard.register(defaults: ["micGain": Float(1.0)])
@@ -42,6 +50,7 @@ final class AppState {
         self.midiManager = midi
         self.audioEngine = AudioEngine(sampleStore: store)
         self.textScroller = TextScroller(midiManager: midi)
+        self.instrumentEngine = InstrumentEngine(audioEngine: self.audioEngine)
         self.project = projectMgr.loadLastProject() ?? Project(name: "Default")
 
         // Generate factory synth samples on first launch (no-op if already on disk)
@@ -64,7 +73,15 @@ final class AppState {
             self?.handlePadRelease(position: position)
         }
         midiManager.onSideButtonPressed = { [weak self] index in
-            guard let self, self.vocalPadPosition != nil else { return }
+            guard let self else { return }
+            // Instrument mode: top button exits, all others swallowed
+            if self.activeInstrument != nil {
+                if index == 7 {
+                    self.exitInstrumentMode()
+                }
+                return
+            }
+            guard self.vocalPadPosition != nil else { return }
             self.handleDryWetButton(index: index)
         }
         midiManager.onDeviceConnected = { [weak self] in
@@ -93,6 +110,9 @@ final class AppState {
     }
 
     func switchProject(_ newProject: Project) {
+        if activeInstrument != nil {
+            exitInstrumentMode()
+        }
         deactivateMic()
         audioEngine.stopAll()
         project = newProject
@@ -105,7 +125,25 @@ final class AppState {
     // MARK: - Pad Interaction
 
     func handlePadPress(position: GridPosition, velocity: UInt8) {
+        // Instrument mode: route all pads to note playback
+        if let active = activeInstrument {
+            let layout = active.type.noteLayout
+            guard let note = layout.noteForPosition(position) else { return }
+            instrumentEngine.playNote(note: note, velocity: velocity, instrument: active.type)
+            midiManager.setLED(at: position, color: layout.pressedColor)
+            return
+        }
+
         let pad = project.pad(at: position)
+
+        // Instrument pad: enter instrument mode
+        if pad.isInstrumentPad, let config = pad.instrumentConfig {
+            activeInstrument = ActiveInstrument(type: config.instrumentType, sourcePosition: position)
+            instrumentEngine.loadInstrument(config.instrumentType)
+            instrumentEngine.setVolume(config.volume, for: config.instrumentType)
+            renderInstrumentGrid(config.instrumentType)
+            return
+        }
 
         // Vocal pad: gate mic instead of playing a sample
         if pad.isVocalPad, let vocalConfig = pad.vocalConfig {
@@ -171,6 +209,15 @@ final class AppState {
     }
 
     func handlePadRelease(position: GridPosition) {
+        // Instrument mode: send note-off
+        if let active = activeInstrument {
+            let layout = active.type.noteLayout
+            guard let note = layout.noteForPosition(position) else { return }
+            instrumentEngine.stopNote(note: note, instrument: active.type)
+            midiManager.setLED(at: position, color: layout.colorForPosition(position))
+            return
+        }
+
         let pad = project.pad(at: position)
 
         // Vocal pad hold mode: deactivate mic on release
@@ -264,6 +311,34 @@ final class AppState {
         if let pos = vocalPadPosition {
             midiManager.setLED(at: pos, color: project.pad(at: pos).color)
         }
+    }
+
+    // MARK: - Instrument Mode
+
+    func exitInstrumentMode() {
+        instrumentEngine.stopAllNotes()
+        activeInstrument = nil
+        midiManager.syncLEDs(with: project, playingPads: audioEngine.activePads)
+        renderDryWetMeter()
+    }
+
+    func renderInstrumentGrid(_ type: InstrumentType) {
+        let layout = type.noteLayout
+        var entries: [(note: UInt8, r: UInt8, g: UInt8, b: UInt8)] = []
+        for row in 0..<8 {
+            for col in 0..<8 {
+                let pos = GridPosition(row: row, column: col)
+                let color = layout.colorForPosition(pos)
+                entries.append((note: pos.midiNote, r: color.r, g: color.g, b: color.b))
+            }
+        }
+        midiManager.sendBatchLEDs(entries: entries)
+
+        // Side buttons: only top button lit (exit = red)
+        for i in 0..<7 {
+            midiManager.setSideButtonLED(index: i, color: .off)
+        }
+        midiManager.setSideButtonLED(index: 7, color: LaunchpadColor(r: 127, g: 20, b: 20))
     }
 
     // MARK: - Bundle Import
