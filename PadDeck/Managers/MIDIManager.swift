@@ -78,11 +78,11 @@ final class MIDIManager {
             }
         }
 
-        // Prefer MIDI port over DAW port
+        // Prefer DAW port — side/top buttons only send on DAW in programmer mode
         devices.sort { a, b in
-            let aIsMIDI = a.name.lowercased().contains("midi")
-            let bIsMIDI = b.name.lowercased().contains("midi")
-            return aIsMIDI && !bIsMIDI
+            let aIsDAW = a.name.lowercased().contains("daw")
+            let bIsDAW = b.name.lowercased().contains("daw")
+            return aIsDAW && !bIsDAW
         }
 
         availableDevices = devices
@@ -251,7 +251,7 @@ final class MIDIManager {
         var packet = eventList.packet
 
         for _ in 0..<eventList.numPackets {
-            let words = Mirror(reflecting: packet.words).children.map { $0.value as! UInt32 }
+            let words = Mirror(reflecting: packet.words).children.compactMap { $0.value as? UInt32 }
             guard let firstWord = words.first, firstWord != 0 else {
                 packet = MIDIEventPacketNext(&packet).pointee
                 continue
@@ -259,7 +259,6 @@ final class MIDIManager {
 
             // MIDI 1.0 channel voice message in UMP format
             // Word format: [messageType(4) group(4) status(8) note(8) velocity(8)]
-            print("[MIDI-UMP] word=0x\(String(firstWord, radix:16, uppercase:true))")
             let messageType = (firstWord >> 28) & 0x0F
             let status = (firstWord >> 16) & 0xFF
             let note = UInt8((firstWord >> 8) & 0xFF)
@@ -267,7 +266,6 @@ final class MIDIManager {
 
             if messageType == 0x02 { // MIDI 1.0 channel voice
                 let statusHigh = status & 0xF0
-                print("[MIDI-RAW] type=0x\(String(messageType, radix:16)) status=0x\(String(status, radix:16)) note=\(note) vel=\(velocity)")
                 if statusHigh == 0x90 && velocity > 0 { // Note On
                     if let position = GridPosition.from(midiNote: note) {
                         DispatchQueue.main.async(qos: .userInteractive) { [weak self] in
@@ -285,7 +283,7 @@ final class MIDIManager {
                         }
                     }
                 }
-                // CC messages (0xB0) from top-row buttons (CC 91-98)
+                // CC messages (0xB0) from top-row and side buttons
                 if statusHigh == 0xB0 {
                     let cc = note  // in CC messages, the "note" byte is actually the CC number
                     let value = velocity  // and "velocity" is the CC value
@@ -293,6 +291,12 @@ final class MIDIManager {
                         let index = Int(cc) - 91  // CC 91 = index 0 (left), CC 98 = index 7 (right)
                         DispatchQueue.main.async(qos: .userInteractive) { [weak self] in
                             self?.onTopButtonPressed?(index)
+                        }
+                    }
+                    // Side buttons on DAW port send CC 19,29,39,49,59,69,79,89
+                    if let index = Self.sideButtonIndex(from: cc), value > 0 {
+                        DispatchQueue.main.async(qos: .userInteractive) { [weak self] in
+                            self?.onSideButtonPressed?(index)
                         }
                     }
                 }
