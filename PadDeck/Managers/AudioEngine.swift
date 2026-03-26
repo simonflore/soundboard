@@ -204,15 +204,23 @@ final class AudioEngine {
         let oldNode = effectNode(for: activeVocalEffect)
         let newNode = effectNode(for: effect)
 
+        // Mute during switch to avoid glitches/crashes from live disconnection
+        let savedVolume = micGainNode.volume
+        micGainNode.volume = 0
+
         // Disconnect old: micGainNode → oldNode → mixer
         engine.disconnectNodeOutput(micGainNode)
         engine.disconnectNodeOutput(oldNode)
 
         // Connect new: micGainNode → newNode → mixer
-        engine.connect(micGainNode, to: newNode, format: nil)
+        let format = micGainNode.outputFormat(forBus: 0)
+        engine.connect(micGainNode, to: newNode, format: format)
         engine.connect(newNode, to: mixer, format: nil)
 
         activeVocalEffect = effect
+
+        // Restore volume after reconnection
+        micGainNode.volume = savedVolume
     }
 
     /// AVAudioUnitTimePitch has no wetDryMix — pitch shift is always 100% wet.
@@ -299,6 +307,10 @@ final class AudioEngine {
 
         // Connect: inputNode → micGainNode → reverbNode (default) → mixer
         let inputFormat = engine.inputNode.outputFormat(forBus: 0)
+        guard inputFormat.channelCount > 0 else {
+            print("[AudioEngine] No microphone input available — vocal chain disabled")
+            return
+        }
         engine.connect(engine.inputNode, to: micGainNode, format: inputFormat)
         engine.connect(micGainNode, to: reverbNode, format: nil)
         engine.connect(reverbNode, to: mixer, format: nil)
