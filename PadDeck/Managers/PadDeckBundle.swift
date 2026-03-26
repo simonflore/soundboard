@@ -165,7 +165,11 @@ enum PadDeckBundle {
                     let destSize = (try? destFile.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? -2
                     if sourceSize == destSize { continue }
                 }
-                try? FileManager.default.copyItem(at: sourceFile, to: destFile)
+                do {
+                    try FileManager.default.copyItem(at: sourceFile, to: destFile)
+                } catch {
+                    throw BundleError.exportFailed("Failed to copy \(sourceFile.lastPathComponent): \(error.localizedDescription)")
+                }
             }
         }
 

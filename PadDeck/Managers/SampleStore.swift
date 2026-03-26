@@ -53,9 +53,16 @@ final class SampleStore {
         return Sample(name: name, filename: url.lastPathComponent, fileDuration: duration)
     }
 
-    func deleteAudioFile(for sample: Sample) {
-        guard let url = audioFileURL(for: sample) else { return }
-        try? FileManager.default.removeItem(at: url)
+    @discardableResult
+    func deleteAudioFile(for sample: Sample) -> Bool {
+        guard let url = audioFileURL(for: sample) else { return false }
+        do {
+            try FileManager.default.removeItem(at: url)
+            return true
+        } catch {
+            print("[SampleStore] Failed to delete \(sample.filename): \(error.localizedDescription)")
+            return false
+        }
     }
 
     // MARK: - Factory Samples
