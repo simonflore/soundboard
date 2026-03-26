@@ -7,7 +7,9 @@ final class SampleStore {
     let audioDirectory: URL
 
     init() {
-        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        guard let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            fatalError("Application Support directory unavailable")
+        }
 
         // Migrate legacy data directory
         let oldDir = appSupport.appendingPathComponent("Soundboard", isDirectory: true)
