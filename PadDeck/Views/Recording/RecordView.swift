@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 
 struct RecordView: View {
@@ -11,6 +12,7 @@ struct RecordView: View {
     @State private var timer: Timer?
     @State private var pulseScale: CGFloat = 1.0
     @State private var errorMessage: String?
+    @State private var awaitingPermission = false
 
     var body: some View {
         VStack(spacing: 24) {
@@ -89,6 +91,14 @@ struct RecordView: View {
                 }
             }
             .frame(height: 160)
+            .contentShape(Circle())
+            .onTapGesture {
+                if isRecording {
+                    stopRecording()
+                } else if recordingURL == nil {
+                    startRecording()
+                }
+            }
 
             // Timer display
             Text(formatDuration(recordingDuration))
@@ -116,6 +126,7 @@ struct RecordView: View {
                         recordingDuration = 0
                         startRecording()
                     }
+                    .disabled(awaitingPermission)
 
                     RecordActionButton(title: "Save to Pad", icon: "square.and.arrow.down", color: .green) {
                         saveRecording()
@@ -126,6 +137,7 @@ struct RecordView: View {
                     RecordActionButton(title: "Start Recording", icon: "mic.fill", color: .red) {
                         startRecording()
                     }
+                    .disabled(awaitingPermission)
                 }
 
                 RecordActionButton(title: "Cancel", icon: "xmark", color: Color(white: 0.4)) {
@@ -153,15 +165,64 @@ struct RecordView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+        .onAppear {
+            // Auto-start recording when opened via Launchpad record button
+            if appState.recordToggleCount > 0 && !isRecording && recordingURL == nil {
+                startRecording()
+            }
+        }
+        .onChange(of: appState.recordToggleCount) {
+            // Launchpad record button toggled while modal is open
+            if isRecording {
+                stopRecording()
+                // Auto-save if a target pad was held
+                if let target = appState.recordTargetPad, recordingURL != nil {
+                    autoSaveRecording(to: target)
+                }
+            } else if recordingURL == nil {
+                startRecording()
+            }
+        }
         .onDisappear {
             timer?.invalidate()
             timer = nil
+            appState.recordTargetPad = nil
         }
     }
 
     // MARK: - Actions
 
     private func startRecording() {
+        #if os(macOS)
+        // Request mic permission ASYNCHRONOUSLY before touching AVAudioEngine.inputNode.
+        // Accessing inputNode triggers a synchronous TCC check that deadlocks the main thread.
+        let status = AVCaptureDevice.authorizationStatus(for: .audio)
+        switch status {
+        case .notDetermined:
+            awaitingPermission = true
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                DispatchQueue.main.async {
+                    awaitingPermission = false
+                    if granted {
+                        beginRecording()
+                    } else {
+                        errorMessage = "Microphone access is required to record samples. Grant access in System Settings > Privacy & Security > Microphone."
+                    }
+                }
+            }
+        case .authorized:
+            beginRecording()
+        case .denied, .restricted:
+            errorMessage = "Microphone access denied. Enable it in System Settings > Privacy & Security > Microphone."
+        @unknown default:
+            beginRecording()
+        }
+        #else
+        beginRecording()
+        #endif
+    }
+
+    private func beginRecording() {
         do {
             recordingURL = try appState.audioEngine.startRecording()
             isRecording = true
@@ -202,6 +263,25 @@ struct RecordView: View {
             }
             appState.updatePad(pad, at: position)
             appState.selectedPad = position
+            dismiss()
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    private func autoSaveRecording(to position: GridPosition) {
+        guard let url = recordingURL else { return }
+        let name = "Recording \(Date().formatted(date: .abbreviated, time: .shortened))"
+        do {
+            let sample = try appState.sampleStore.sampleFromRecording(url: url, name: name)
+            var pad = appState.project.pad(at: position)
+            pad.sample = sample
+            if pad.color == .off {
+                pad.color = .defaultLoaded
+            }
+            appState.updatePad(pad, at: position)
+            appState.selectedPad = position
+            appState.recordTargetPad = nil
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

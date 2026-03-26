@@ -43,8 +43,13 @@ struct PadView: View {
         appState.selectedPad == position
     }
 
+    private var isInstrumentDisabled: Bool {
+        pad.isInstrumentPad && !appState.midiManager.isConnected
+    }
+
     private var padColor: Color {
-        pad.isEmpty ? Color(white: 0.18) : pad.color.swiftUIColor
+        if isInstrumentDisabled { return Color(white: 0.13) }
+        return pad.isEmpty ? Color(white: 0.18) : pad.color.swiftUIColor
     }
 
     var body: some View {
@@ -112,12 +117,12 @@ struct PadView: View {
 
                     Image(systemName: config.instrumentType.iconName)
                         .font(.system(size: 24, weight: .light))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(.white.opacity(isInstrumentDisabled ? 0.25 : 0.9))
                         .shadow(color: .black.opacity(0.3), radius: 2, y: 1)
 
                     Text(config.instrumentType.displayName.uppercased())
                         .font(.system(size: 9, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(.white.opacity(isInstrumentDisabled ? 0.15 : 0.6))
                         .tracking(1)
                         .lineLimit(1)
 

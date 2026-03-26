@@ -12,6 +12,12 @@ final class AppState {
     var project: Project
     var selectedPad: GridPosition?
     var isRecordingPresented = false
+    /// Incremented each time the Launchpad record button is pressed to signal RecordView.
+    var recordToggleCount = 0
+    /// Pad held down when recording starts — auto-saves recording to this pad on stop.
+    var recordTargetPad: GridPosition?
+    /// Pads currently physically held on the Launchpad (for hold+record workflow).
+    var heldPads: Set<GridPosition> = []
     var showImportAlert = false
     var importAlertMessage = ""
     var isEditMode = false
@@ -144,6 +150,7 @@ final class AppState {
     // MARK: - Pad Interaction
 
     func handlePadPress(position: GridPosition, velocity: UInt8) {
+        heldPads.insert(position)
         // Instrument mode: route all pads to note playback
         if let active = activeInstrument {
             let layout = active.type.noteLayout
@@ -155,8 +162,8 @@ final class AppState {
 
         let pad = project.pad(at: position)
 
-        // Instrument pad: enter instrument mode (not during edit mode)
-        if pad.isInstrumentPad, let config = pad.instrumentConfig, !isEditMode {
+        // Instrument pad: enter instrument mode (requires Launchpad, not during edit mode)
+        if pad.isInstrumentPad, let config = pad.instrumentConfig, !isEditMode, midiManager.isConnected {
             activeInstrument = ActiveInstrument(type: config.instrumentType, sourcePosition: position)
             instrumentEngine.loadInstrument(config.instrumentType)
             instrumentEngine.setVolume(config.volume, for: config.instrumentType)
@@ -224,6 +231,7 @@ final class AppState {
     }
 
     func handlePadRelease(position: GridPosition) {
+        heldPads.remove(position)
         // Instrument mode: send note-off
         if let active = activeInstrument {
             let layout = active.type.noteLayout
@@ -455,13 +463,27 @@ final class AppState {
             midiManager.syncLEDs(with: project, playingPads: audioEngine.activePads)
             renderDryWetMeter()
             renderTopButtonLEDs()
-        case 7: // Record
-            showSideButtonIndicator(SideButtonIndicator(
-                message: "Record",
-                icon: "record.circle",
-                accentColor: .red
-            ))
-            isRecordingPresented = true
+        case 7: // Record — toggle start/stop recording
+            if audioEngine.isRecording {
+                showSideButtonIndicator(SideButtonIndicator(
+                    message: "Stop Recording",
+                    icon: "stop.circle",
+                    accentColor: .red
+                ))
+            } else {
+                // Check if an empty pad is held — target it for auto-save
+                let emptyHeld = heldPads.first { project.pad(at: $0).isEmpty }
+                recordTargetPad = emptyHeld
+                showSideButtonIndicator(SideButtonIndicator(
+                    message: "Record",
+                    icon: "record.circle",
+                    accentColor: .red
+                ))
+            }
+            recordToggleCount += 1
+            if !isRecordingPresented {
+                isRecordingPresented = true
+            }
         default:
             break
         }

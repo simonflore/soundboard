@@ -170,21 +170,26 @@ final class AudioEngine {
         }
 
         let url = sampleStore.generateRecordingURL()
-        let inputFormat = micGainNode.outputFormat(forBus: 0)
+        let nodeFormat = micGainNode.outputFormat(forBus: 0)
+        guard nodeFormat.sampleRate > 0, nodeFormat.channelCount > 0 else {
+            throw RecordingError.microphoneUnavailable
+        }
 
-        // On-disk format: 16-bit PCM mono WAV (compatible with DSWaveformImage)
+        // On-disk format: 16-bit PCM WAV, matching the node's channel count.
+        // Using the node's native channel count avoids a format mismatch crash
+        // when installTap tries to set a different format on the bus.
         let outputSettings: [String: Any] = [
             AVFormatIDKey: kAudioFormatLinearPCM,
-            AVSampleRateKey: inputFormat.sampleRate,
-            AVNumberOfChannelsKey: 1,
+            AVSampleRateKey: nodeFormat.sampleRate,
+            AVNumberOfChannelsKey: nodeFormat.channelCount,
             AVLinearPCMBitDepthKey: 16,
             AVLinearPCMIsFloatKey: false,
             AVLinearPCMIsBigEndianKey: false,
             AVLinearPCMIsNonInterleaved: false
         ]
 
-        // Specify float32 as the *processing* format so we can write float32
-        // buffers from the tap — AVAudioFile converts to int16 on disk internally.
+        // Processing format matches node output so tap buffers can be written
+        // directly. AVAudioFile converts to int16 on disk internally.
         let file = try AVAudioFile(
             forWriting: url,
             settings: outputSettings,
@@ -194,16 +199,9 @@ final class AudioEngine {
         self.recordingFile = file
         self.recordingURL = url
 
-        // Tap micGainNode (not inputNode) to avoid conflicting with the
-        // vocal mic chain connection on inputNode bus 0.
-        let tapFormat = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: inputFormat.sampleRate,
-            channels: 1,
-            interleaved: false
-        )
-
-        micGainNode.installTap(onBus: 0, bufferSize: 4096, format: tapFormat) { buffer, _ in
+        // Use nil format — matches the node's native bus format and avoids
+        // the SetFormat crash (-10865) from forcing a different channel count.
+        micGainNode.installTap(onBus: 0, bufferSize: 4096, format: nil) { buffer, _ in
             try? file.write(from: buffer)
         }
 
@@ -359,8 +357,28 @@ final class AudioEngine {
     /// Attaches and connects the mic → effect → mixer chain.
     /// Called lazily the first time a vocal pad is activated or recording starts.
     /// Must stop/restart the engine to safely wire inputNode on macOS.
+    ///
+    /// On macOS, accessing `engine.inputNode` triggers a synchronous TCC
+    /// microphone permission check that blocks the calling thread. Callers
+    /// MUST request permission via `AVCaptureDevice.requestAccess(for: .audio)`
+    /// before invoking any method that reaches this path. If permission has not
+    /// been determined yet, this method bails out to avoid a main-thread deadlock.
     private func ensureMicChainConnected() {
         guard !isMicChainReady else { return }
+
+        #if os(macOS)
+        // Guard against the synchronous TCC deadlock: if the user hasn't
+        // responded to the mic permission prompt yet, do NOT touch inputNode.
+        let micStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        guard micStatus == .authorized else {
+            if micStatus == .notDetermined {
+                print("[AudioEngine] Mic permission not yet determined — deferring mic chain setup")
+            } else {
+                print("[AudioEngine] Mic permission denied/restricted — mic chain disabled")
+            }
+            return
+        }
+        #endif
 
         // Configure effect defaults
         reverbNode.loadFactoryPreset(.largeHall2)
