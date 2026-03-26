@@ -4,5 +4,39 @@
 <dict>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Soundboard needs microphone access to record audio samples.</string>
+	<key>UTExportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.soundboard.project</string>
+			<key>UTTypeDescription</key>
+			<string>Soundboard Project</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+				<string>public.zip-archive</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>soundboard</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>CFBundleDocumentTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Soundboard Project</string>
+			<key>LSHandlerRank</key>
+			<string>Owner</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.soundboard.project</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
