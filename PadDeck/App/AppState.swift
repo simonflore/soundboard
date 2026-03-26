@@ -124,6 +124,7 @@ final class AppState {
         }
         deactivateMic()
         audioEngine.stopAll()
+        audioEngine.invalidateAllCaches()
         project = newProject
         selectedPad = nil
         refreshVocalPadPosition()
