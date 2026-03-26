@@ -279,7 +279,58 @@ final class AudioEngine {
         } catch {
             print("AudioEngine failed to start: \(error)")
         }
+
+        #if os(iOS)
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleSessionInterruption(notification)
+        }
+        NotificationCenter.default.addObserver(
+            forName: AVAudioSession.routeChangeNotification,
+            object: AVAudioSession.sharedInstance(),
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleRouteChange(notification)
+        }
+        #endif
     }
+
+    #if os(iOS)
+    private func handleSessionInterruption(_ notification: Notification) {
+        guard let info = notification.userInfo,
+              let typeValue = info[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: typeValue) else { return }
+
+        if type == .ended {
+            let options = info[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0
+            if AVAudioSession.InterruptionOptions(rawValue: options).contains(.shouldResume) {
+                try? AVAudioSession.sharedInstance().setActive(true)
+                try? engine.start()
+                isEngineRunning = true
+            }
+        } else {
+            isEngineRunning = false
+        }
+    }
+
+    private func handleRouteChange(_ notification: Notification) {
+        guard let info = notification.userInfo,
+              let reasonValue = info[AVAudioSessionRouteChangeReasonKey] as? UInt,
+              let reason = AVAudioSession.RouteChangeReason(rawValue: reasonValue) else { return }
+
+        if reason == .oldDeviceUnavailable {
+            // Headphones/Bluetooth disconnected — restart engine to reconfigure
+            try? AVAudioSession.sharedInstance().setActive(true)
+            if !engine.isRunning {
+                try? engine.start()
+                isEngineRunning = true
+            }
+        }
+    }
+    #endif
 
     /// Attaches and connects the mic → effect → mixer chain.
     /// Called lazily the first time a vocal pad is activated (engine is already running).
