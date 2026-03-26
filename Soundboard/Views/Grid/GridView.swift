@@ -20,45 +20,6 @@ struct GridView: View {
                 .padding(.trailing, 18)
                 .padding(.bottom, 4)
         }
-        .overlay {
-            if case .xyPad(_, let cursor) = appState.mode {
-                VStack(spacing: 0) {
-                    HStack {
-                        Text("XY PAD")
-                            .font(.system(size: 14, weight: .black, design: .rounded))
-                            .foregroundStyle(.white)
-                            .tracking(2)
-
-                        Spacer()
-
-                        if let c = cursor {
-                            let noteName = AppState.pentatonicNoteNames[c.column]
-                            let volume = Int((0.15 + (Float(c.row) / 7.0) * 0.85) * 100)
-
-                            Text("\(noteName)  Vol: \(volume)%")
-                                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                                .foregroundStyle(.white.opacity(0.7))
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 16)
-
-                    Spacer()
-
-                    HStack {
-                        Label("← Notes →", systemImage: "arrow.left.arrow.right")
-                        Spacer()
-                        Label("↕ Volume", systemImage: "arrow.up.arrow.down")
-                    }
-                    .font(.system(size: 10, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.4))
-                    .padding(.horizontal, 20)
-                    .padding(.bottom, 12)
-                }
-                .background(.ultraThinMaterial.opacity(0.3))
-                .allowsHitTesting(false)
-            }
-        }
         .padding(14)
         .background(
             ZStack {

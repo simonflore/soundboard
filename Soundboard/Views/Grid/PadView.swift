@@ -124,7 +124,6 @@ struct PadView: View {
                     if appState.isEditMode {
                         // Edit mode: select only, no playback
                         appState.selectedPad = position
-                        appState.updateXYButtonLED()
                     } else {
                         let velocity = PressureTracker.shared.velocity
                         appState.handlePadPress(position: position, velocity: velocity)

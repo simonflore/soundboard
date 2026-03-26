@@ -107,34 +107,6 @@ final class AudioEngine {
         }
     }
 
-    /// Set pitch in cents (-2400 to +2400). 0 = normal, -1200 = -1 octave, +1200 = +1 octave.
-    func setPitch(at position: GridPosition, cents: Float) {
-        timePitchNodes[position]?.pitch = cents
-    }
-
-    /// Set playback rate (0.25 to 4.0). 1.0 = normal speed.
-    func setRate(at position: GridPosition, rate: Float) {
-        timePitchNodes[position]?.rate = rate
-    }
-
-    /// Set player volume (0.0 to 1.0) for XY volume control.
-    func setVolume(at position: GridPosition, volume: Float) {
-        playerNodes[position]?.volume = volume
-    }
-
-    /// Reset pitch and rate to defaults.
-    func resetEffects(at position: GridPosition) {
-        timePitchNodes[position]?.pitch = 0
-        timePitchNodes[position]?.rate = 1.0
-    }
-
-    func resetAllEffects() {
-        for (_, node) in timePitchNodes {
-            node.pitch = 0
-            node.rate = 1.0
-        }
-    }
-
     func isPlaying(at position: GridPosition) -> Bool {
         activePads.contains(position)
     }
