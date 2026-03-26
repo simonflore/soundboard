@@ -10,6 +10,8 @@ struct RecordView: View {
     @State private var recordingDuration: TimeInterval = 0
     @State private var timer: Timer?
     @State private var pulseScale: CGFloat = 1.0
+    @State private var errorMessage: String?
+    @State private var recordingStart: Date?
 
     var body: some View {
         VStack(spacing: 24) {
@@ -144,6 +146,14 @@ struct RecordView: View {
                 endPoint: .bottom
             )
         )
+        .alert("Save Failed", isPresented: Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )) {
+            Button("OK") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
     }
 
     // MARK: - Actions
@@ -154,8 +164,10 @@ struct RecordView: View {
             isRecording = true
             recordingDuration = 0
             pulseScale = 1.8
+            let start = Date()
+            recordingStart = start
             timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-                recordingDuration += 0.1
+                recordingDuration = Date().timeIntervalSince(start)
             }
         } catch {
             print("Failed to start recording: \(error)")
@@ -188,11 +200,10 @@ struct RecordView: View {
             }
             appState.updatePad(pad, at: position)
             appState.selectedPad = position
+            dismiss()
         } catch {
-            print("Failed to save recording: \(error)")
+            errorMessage = error.localizedDescription
         }
-
-        dismiss()
     }
 
     private func cancelRecording() {
