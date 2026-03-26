@@ -19,7 +19,7 @@ final class AudioEngine {
     private var fileCache: [String: AVAudioFile] = [:]
     private var loopBufferCache: [String: AVAudioPCMBuffer] = [:]
 
-    // Vocal mic chain
+    // Vocal mic chain (lazily connected)
     private let micGainNode = AVAudioMixerNode()
     private let reverbNode = AVAudioUnitReverb()
     private let delayNode = AVAudioUnitDelay()
@@ -27,6 +27,7 @@ final class AudioEngine {
     private let distortionNode = AVAudioUnitDistortion()
     private var activeVocalEffect: VocalEffect = .reverb
     private(set) var globalMicGain: Float = 1.0
+    private var isMicChainReady = false
 
     private var recordingFile: AVAudioFile?
     private var recordingURL: URL?
@@ -137,6 +138,7 @@ final class AudioEngine {
     // MARK: - Recording
 
     func startRecording() throws -> URL {
+        ensureMicChainConnected()
         if isRecording {
             micGainNode.removeTap(onBus: 0)
             recordingFile = nil
@@ -195,31 +197,30 @@ final class AudioEngine {
     // MARK: - Vocal Mic
 
     func setMicActive(_ active: Bool) {
+        if active { ensureMicChainConnected() }
         micGainNode.volume = active ? globalMicGain : 0
     }
 
     func switchVocalEffect(to effect: VocalEffect) {
         guard effect != activeVocalEffect else { return }
+        ensureMicChainConnected()
+        guard isMicChainReady else { return }
 
         let oldNode = effectNode(for: activeVocalEffect)
         let newNode = effectNode(for: effect)
 
-        // Mute during switch to avoid glitches/crashes from live disconnection
+        // Mute during switch to avoid glitches from live disconnection
         let savedVolume = micGainNode.volume
         micGainNode.volume = 0
 
-        // Disconnect old: micGainNode → oldNode → mixer
+        // Only rewire micGainNode → effect → mixer (inputNode stays connected)
         engine.disconnectNodeOutput(micGainNode)
         engine.disconnectNodeOutput(oldNode)
 
-        // Connect new: micGainNode → newNode → mixer
-        let format = micGainNode.outputFormat(forBus: 0)
-        engine.connect(micGainNode, to: newNode, format: format)
+        engine.connect(micGainNode, to: newNode, format: nil)
         engine.connect(newNode, to: mixer, format: nil)
 
         activeVocalEffect = effect
-
-        // Restore volume after reconnection
         micGainNode.volume = savedVolume
     }
 
@@ -272,7 +273,6 @@ final class AudioEngine {
 
         engine.attach(mixer)
         engine.connect(mixer, to: engine.mainMixerNode, format: nil)
-        setupMicChain()
         do {
             try engine.start()
             isEngineRunning = true
@@ -281,7 +281,11 @@ final class AudioEngine {
         }
     }
 
-    private func setupMicChain() {
+    /// Attaches and connects the mic → effect → mixer chain.
+    /// Called lazily the first time a vocal pad is activated (engine is already running).
+    private func ensureMicChainConnected() {
+        guard !isMicChainReady else { return }
+
         // Configure effect defaults
         reverbNode.loadFactoryPreset(.largeHall2)
         reverbNode.wetDryMix = 50
@@ -296,16 +300,17 @@ final class AudioEngine {
         distortionNode.loadFactoryPreset(.speechWaves)
         distortionNode.wetDryMix = 50
 
-        // Attach all nodes (but only connect the active effect)
+        // Attach all effect nodes
         engine.attach(micGainNode)
         engine.attach(reverbNode)
         engine.attach(delayNode)
         engine.attach(vocalPitchNode)
         engine.attach(distortionNode)
 
-        micGainNode.volume = 0 // Start muted
+        micGainNode.volume = 0
 
-        // Connect: inputNode → micGainNode → reverbNode (default) → mixer
+        // Connect inputNode → micGainNode → default effect → mixer
+        // Engine is already running, so inputNode format is valid
         let inputFormat = engine.inputNode.outputFormat(forBus: 0)
         guard inputFormat.channelCount > 0 else {
             print("[AudioEngine] No microphone input available — vocal chain disabled")
@@ -316,6 +321,7 @@ final class AudioEngine {
         engine.connect(reverbNode, to: mixer, format: nil)
 
         activeVocalEffect = .reverb
+        isMicChainReady = true
     }
 
     private func playerNode(for position: GridPosition) -> AVAudioPlayerNode {
