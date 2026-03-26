@@ -40,8 +40,16 @@ Supports: Launchpad X, Mini MK3, Pro MK3, MK2, and Pro (original).
 - CoreMIDI works on both platforms (iPad connects via USB-C)
 - AudioEngine, MIDIManager, SampleStore, ProjectManager, all Models — fully shared
 
+## Project Sharing
+
+- `.soundboard` files are ZIP bundles containing `project.json` + `audio/` directory
+- UTType `com.soundboard.project` registered for native file association on both platforms
+- `SoundboardBundle` handles export (ZIP creation) and import (unzip + file copy)
+- Import with name collision offers "Replace" or "Keep Both"
+- ZIPFoundation dependency for cross-platform ZIP handling
+
 ## Build
 
 - XcodeGen project (`project.yml`), Swift 5.9
 - macOS 14.0 / iPadOS 17.0 deployment targets
-- External dependency: DSWaveformImage v14.0.0+
+- External dependencies: DSWaveformImage v14.0.0+, ZIPFoundation v0.9.0+
