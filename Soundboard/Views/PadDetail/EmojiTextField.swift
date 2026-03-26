@@ -39,25 +39,26 @@ struct EmojiTextField: NSViewRepresentable {
             guard let field = obj.object as? NSTextField else { return }
             let text = field.stringValue
 
-            // Keep only the last character (emoji) entered
-            if let last = text.last, last.unicodeScalars.allSatisfy({ $0.properties.isEmoji && $0.value > 0x23 }) {
-                let single = String(last)
+            if text.isEmpty {
+                emoji.wrappedValue = ""
+                return
+            }
+
+            // Find the last character that is a real emoji (not digits, #, * etc.)
+            let lastEmoji = text.last.flatMap { char -> String? in
+                let scalars = char.unicodeScalars
+                let isRealEmoji = scalars.contains { scalar in
+                    scalar.properties.isEmoji &&
+                    scalar.properties.isEmojiPresentation
+                } || (scalars.count > 1 && scalars.first?.properties.isEmoji == true)
+                return isRealEmoji ? String(char) : nil
+            }
+
+            if let single = lastEmoji {
                 emoji.wrappedValue = single
                 field.stringValue = single
-            } else if text.isEmpty {
-                emoji.wrappedValue = ""
             } else {
-                // Filter to emoji only
-                let filtered = text.filter { char in
-                    char.unicodeScalars.allSatisfy { $0.properties.isEmoji && $0.value > 0x23 }
-                }
-                if let last = filtered.last {
-                    let single = String(last)
-                    emoji.wrappedValue = single
-                    field.stringValue = single
-                } else {
-                    field.stringValue = emoji.wrappedValue
-                }
+                field.stringValue = emoji.wrappedValue
             }
         }
     }
