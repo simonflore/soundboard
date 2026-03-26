@@ -6,28 +6,8 @@ import UIKit
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Conditionally constrains a view to 1:1 aspect ratio.
-/// On iPhone (compact), pads stretch vertically to fill the screen.
-private struct PadAspectRatio: ViewModifier {
-    let forceSquare: Bool
-
-    func body(content: Content) -> some View {
-        if forceSquare {
-            content.aspectRatio(1, contentMode: .fit)
-        } else {
-            content
-        }
-    }
-}
-
 struct PadView: View {
     @Environment(AppState.self) private var appState
-    #if os(iOS)
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    private var isCompactPhone: Bool { horizontalSizeClass == .compact }
-    #else
-    private let isCompactPhone = false
-    #endif
     let position: GridPosition
 
     @State private var isHovering = false
@@ -162,7 +142,7 @@ struct PadView: View {
                 PlaybackIndicator()
             }
         }
-        .modifier(PadAspectRatio(forceSquare: !isCompactPhone))
+        .aspectRatio(1, contentMode: .fit)
         .scaleEffect(isPressed ? 0.92 : (isHovering ? 1.03 : 1.0))
         .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isPressed)
         .animation(.easeOut(duration: 0.15), value: isHovering)
