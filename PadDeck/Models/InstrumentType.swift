@@ -22,7 +22,7 @@ enum InstrumentType: String, Codable, CaseIterable, Identifiable, Sendable {
     var iconName: String {
         switch self {
         case .piano: "pianokeys"
-        case .drums: "beats.headphoneshigh"
+        case .drums: "drum.fill"
         case .marimba: "music.quarternote.3"
         case .synthLead: "waveform"
         case .synthPad: "waveform.path"
