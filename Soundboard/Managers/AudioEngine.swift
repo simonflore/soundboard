@@ -33,8 +33,16 @@ final class AudioEngine {
     /// to how MIDI velocity works on a Launchpad, but also driven by
     /// Force Touch pressure from the MacBook trackpad.
     func play(pad: PadConfiguration, velocity: UInt8 = 127) {
-        guard let sample = pad.sample,
-              let file = cachedFile(for: sample) else { return }
+        guard let sample = pad.sample else { return }
+
+        let file: AVAudioFile?
+        switch pad.playMode {
+        case .oneShot, .oneShotStopOnRelease:
+            file = freshFile(for: sample)
+        case .loop:
+            file = cachedFile(for: sample)
+        }
+        guard let file else { return }
 
         let player = playerNode(for: pad.position)
         player.stop()
@@ -249,6 +257,12 @@ final class AudioEngine {
               let file = try? AVAudioFile(forReading: url) else { return nil }
         fileCache[key] = file
         return file
+    }
+
+    /// Open a fresh AVAudioFile for one-shot playback (avoids framePosition race on shared file).
+    private func freshFile(for sample: Sample) -> AVAudioFile? {
+        guard let url = sampleStore.audioFileURL(for: sample) else { return nil }
+        return try? AVAudioFile(forReading: url)
     }
 
     private func loopBufferKey(for sample: Sample) -> String {
