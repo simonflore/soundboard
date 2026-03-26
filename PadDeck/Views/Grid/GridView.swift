@@ -28,6 +28,16 @@ struct GridView: View {
                 .padding(.trailing, 18)
                 .padding(.bottom, 4)
         }
+        .overlay(alignment: .top) {
+            if let active = appState.activeInstrument {
+                InstrumentStatusBar(
+                    instrumentType: active.type,
+                    onExit: { appState.exitInstrumentMode() }
+                )
+                .transition(.move(edge: .top).combined(with: .opacity))
+                .animation(.spring(response: 0.3, dampingFraction: 0.8), value: appState.activeInstrument != nil)
+            }
+        }
         .padding(14)
         .background(
             ZStack {
