@@ -14,5 +14,19 @@ build/
 # Claude Code
 .claude/
 
+# SoundFont files (except bundled GM fallback)
+*.sf2
+*.SF2
+!PadDeck/Resources/SoundFonts/GeneralMIDI.sf2
+
+# Credentials/certificates (preventive)
+.env*
+*.pem
+*.key
+*.p8
+*.p12
+*.cer
+*.mobileprovision
+
 # AI planning docs
 docs/
