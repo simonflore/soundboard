@@ -74,9 +74,11 @@ final class AppState {
         }
         midiManager.onSideButtonPressed = { [weak self] index in
             guard let self else { return }
+            print("[SideButton] index=\(index) activeInstrument=\(self.activeInstrument != nil)")
             // Instrument mode: top button exits, all others swallowed
             if self.activeInstrument != nil {
                 if index == 7 {
+                    print("[SideButton] Exiting instrument mode")
                     self.exitInstrumentMode()
                 }
                 return

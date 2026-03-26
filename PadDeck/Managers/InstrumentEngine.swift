@@ -19,16 +19,23 @@ final class InstrumentEngine {
         audioEngine.avAudioEngine.attach(sampler)
         audioEngine.avAudioEngine.connect(sampler, to: audioEngine.mixerNode, format: nil)
 
-        // Load SoundFont from app bundle
+        // Load SoundFont: try per-instrument file first, then fall back to single GM SoundFont
+        let bankMSB: UInt8 = type == .drums ? UInt8(kAUSampler_DefaultPercussionBankMSB) : UInt8(kAUSampler_DefaultMelodicBankMSB)
+
         if let url = Bundle.main.url(forResource: type.soundFontFilename, withExtension: "sf2") {
-            let bankMSB: UInt8 = type == .drums ? UInt8(kAUSampler_DefaultPercussionBankMSB) : UInt8(kAUSampler_DefaultMelodicBankMSB)
             do {
                 try sampler.loadSoundBankInstrument(at: url, program: 0, bankMSB: bankMSB, bankLSB: 0)
             } catch {
                 print("[InstrumentEngine] Failed to load SoundFont for \(type.displayName): \(error)")
             }
+        } else if let gmURL = Bundle.main.url(forResource: "GeneralMIDI", withExtension: "sf2") {
+            do {
+                try sampler.loadSoundBankInstrument(at: gmURL, program: type.gmProgram, bankMSB: bankMSB, bankLSB: 0)
+            } catch {
+                print("[InstrumentEngine] Failed to load GM SoundFont for \(type.displayName): \(error)")
+            }
         } else {
-            print("[InstrumentEngine] SoundFont not found: \(type.soundFontFilename).sf2")
+            print("[InstrumentEngine] No SoundFont found for \(type.displayName)")
         }
 
         samplers[type] = sampler

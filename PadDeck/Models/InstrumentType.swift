@@ -39,6 +39,17 @@ enum InstrumentType: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
+    /// General MIDI program number for use with a single GM SoundFont.
+    var gmProgram: UInt8 {
+        switch self {
+        case .piano: 0       // Acoustic Grand Piano
+        case .drums: 0       // Standard Kit (uses percussion bank)
+        case .marimba: 12    // Marimba
+        case .synthLead: 80  // Lead 1 (square)
+        case .synthPad: 88   // Pad 1 (new age)
+        }
+    }
+
     var defaultColor: LaunchpadColor {
         switch self {
         case .piano: LaunchpadColor(r: 100, g: 100, b: 127)
