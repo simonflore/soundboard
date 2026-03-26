@@ -33,13 +33,10 @@ struct PadView: View {
     @State private var isHovering = false
     @State private var isPressed = false
     @State private var isDropTargeted = false
+    @State private var isPlaying = false
 
     private var pad: PadConfiguration {
         appState.project.pad(at: position)
-    }
-
-    private var isPlaying: Bool {
-        appState.audioEngine.activePads.contains(position)
     }
 
     private var isSelected: Bool {
@@ -215,6 +212,15 @@ struct PadView: View {
         }
         .draggable(position)
         #endif
+        .onReceive(
+            appState.audioEngine.playingStateChanged
+                .filter { $0 == position }
+        ) { _ in
+            isPlaying = appState.audioEngine.activePads.contains(position)
+        }
+        .onAppear {
+            isPlaying = appState.audioEngine.activePads.contains(position)
+        }
         .onDrop(of: [.json, .fileURL], isTargeted: $isDropTargeted) { providers in
             // Pad swap (GridPosition encoded as JSON via Transferable)
             if let provider = providers.first(where: { $0.hasItemConformingToTypeIdentifier(UTType.json.identifier) }) {

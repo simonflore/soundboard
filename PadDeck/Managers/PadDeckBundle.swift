@@ -76,7 +76,7 @@ enum PadDeckBundle {
 
     /// Reads a `.paddeck` bundle and returns a preview (project + temp audio dir).
     /// Does NOT copy files or save the project — call `finalizeImport` after user confirms.
-    static func previewImport(
+    @MainActor static func previewImport(
         from url: URL,
         projectManager: ProjectManager
     ) throws -> ImportPreview {
@@ -131,7 +131,7 @@ enum PadDeckBundle {
     }
 
     /// Copies audio files and saves the project. Call after user confirms.
-    static func finalizeImport(
+    @MainActor static func finalizeImport(
         preview: ImportPreview,
         mode: ImportMode,
         sampleStore: SampleStore,

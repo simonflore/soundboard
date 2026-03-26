@@ -145,7 +145,7 @@ struct RecordView: View {
                 endPoint: .bottom
             )
         )
-        .alert("Save Failed", isPresented: Binding(
+        .alert("Recording Error", isPresented: Binding(
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )) {
@@ -172,7 +172,7 @@ struct RecordView: View {
                 recordingDuration = Date().timeIntervalSince(start)
             }
         } catch {
-            print("Failed to start recording: \(error)")
+            errorMessage = error.localizedDescription
             recordingURL = nil
         }
     }

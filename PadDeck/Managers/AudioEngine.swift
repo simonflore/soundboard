@@ -1,11 +1,14 @@
 import AVFoundation
+import Combine
 import Foundation
 
 @Observable
 final class AudioEngine {
     private(set) var isEngineRunning = false
     private(set) var isRecording = false
-    private(set) var activePads: Set<GridPosition> = []
+    @ObservationIgnored private(set) var activePads: Set<GridPosition> = []
+    /// Emits the position of a pad whose playing state changed (started or stopped).
+    @ObservationIgnored let playingStateChanged = PassthroughSubject<GridPosition, Never>()
 
     private let engine = AVAudioEngine()
     private let mixer = AVAudioMixerNode()
@@ -82,6 +85,7 @@ final class AudioEngine {
             ) { [weak self] in
                 DispatchQueue.main.async {
                     self?.activePads.remove(pad.position)
+                    self?.playingStateChanged.send(pad.position)
                     self?.onPadStopped?(pad.position)
                 }
             }
@@ -105,18 +109,24 @@ final class AudioEngine {
         player.volume = pad.volume * velocityScale
         player.play()
         activePads.insert(pad.position)
+        playingStateChanged.send(pad.position)
     }
 
     func stop(at position: GridPosition) {
         playerNodes[position]?.stop()
         activePads.remove(position)
+        playingStateChanged.send(position)
     }
 
     func stopAll() {
+        let wasPlaying = activePads
         for (_, player) in playerNodes {
             player.stop()
         }
         activePads.removeAll()
+        for pos in wasPlaying {
+            playingStateChanged.send(pos)
+        }
     }
 
     func isPlaying(at position: GridPosition) -> Bool {
@@ -137,8 +147,22 @@ final class AudioEngine {
 
     // MARK: - Recording
 
+    enum RecordingError: LocalizedError {
+        case microphoneUnavailable
+
+        var errorDescription: String? {
+            switch self {
+            case .microphoneUnavailable:
+                return "Microphone not available. Check System Settings > Privacy & Security > Microphone."
+            }
+        }
+    }
+
     func startRecording() throws -> URL {
         ensureMicChainConnected()
+        guard isMicChainReady else {
+            throw RecordingError.microphoneUnavailable
+        }
         if isRecording {
             micGainNode.removeTap(onBus: 0)
             recordingFile = nil
