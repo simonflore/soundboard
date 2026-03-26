@@ -10,10 +10,53 @@ struct SettingsView: View {
             midiTab
                 .tabItem { Label("MIDI", systemImage: "pianokeys") }
 
+            audioTab
+                .tabItem { Label("Audio", systemImage: "speaker.wave.2") }
+
             projectsTab
                 .tabItem { Label("Projects", systemImage: "folder") }
         }
         .frame(width: 450, height: 350)
+    }
+
+    // MARK: - Audio Tab
+
+    private var audioTab: some View {
+        Form {
+            Section("Microphone") {
+                HStack(spacing: 8) {
+                    Image(systemName: micGainIcon)
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 16)
+
+                    Slider(
+                        value: Binding(
+                            get: { appState.micGain },
+                            set: { appState.micGain = $0 }
+                        ),
+                        in: 0...2,
+                        step: 0.05
+                    )
+
+                    Text("\(Int(appState.micGain * 100))%")
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, alignment: .trailing)
+                }
+
+                Text("Adjusts microphone input gain for live vocal pads.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private var micGainIcon: String {
+        if appState.micGain == 0 { return "mic.slash" }
+        if appState.micGain < 0.5 { return "mic" }
+        return "mic.fill"
     }
 
     // MARK: - MIDI Tab
