@@ -11,7 +11,6 @@ struct RecordView: View {
     @State private var timer: Timer?
     @State private var pulseScale: CGFloat = 1.0
     @State private var errorMessage: String?
-    @State private var recordingStart: Date?
 
     var body: some View {
         VStack(spacing: 24) {
@@ -154,6 +153,10 @@ struct RecordView: View {
         } message: {
             Text(errorMessage ?? "")
         }
+        .onDisappear {
+            timer?.invalidate()
+            timer = nil
+        }
     }
 
     // MARK: - Actions
@@ -165,7 +168,6 @@ struct RecordView: View {
             recordingDuration = 0
             pulseScale = 1.8
             let start = Date()
-            recordingStart = start
             timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
                 recordingDuration = Date().timeIntervalSince(start)
             }

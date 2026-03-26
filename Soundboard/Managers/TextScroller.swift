@@ -55,7 +55,9 @@ final class TextScroller {
                 try await Task.sleep(for: .milliseconds(100))
             } catch {}
 
-            restoreColors()
+            if !Task.isCancelled {
+                restoreColors()
+            }
         }
     }
 
