@@ -43,6 +43,14 @@ final class AppState {
         }
     }
 
+    var duckExternalAudio: Bool {
+        get { UserDefaults.standard.bool(forKey: "duckExternalAudio") }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "duckExternalAudio")
+            audioEngine.duckingEnabled = newValue
+        }
+    }
+
     let midiManager: MIDIManager
     let audioEngine: AudioEngine
     let sampleStore: SampleStore
@@ -51,7 +59,7 @@ final class AppState {
     let instrumentEngine: InstrumentEngine
 
     init() {
-        UserDefaults.standard.register(defaults: ["micGain": Float(1.0)])
+        UserDefaults.standard.register(defaults: ["micGain": Float(1.0), "duckExternalAudio": true])
         let store = SampleStore()
         let projectMgr = ProjectManager(sampleStore: store)
         let midi = MIDIManager()
@@ -72,6 +80,7 @@ final class AppState {
         }
 
         audioEngine.setMicGain(micGain)
+        audioEngine.duckingEnabled = duckExternalAudio
         vocalPadPosition = project.pads.first(where: { $0.isVocalPad })?.position
     }
 

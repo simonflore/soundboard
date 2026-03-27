@@ -10,6 +10,11 @@ final class AudioEngine {
     /// Emits the position of a pad whose playing state changed (started or stopped).
     @ObservationIgnored let playingStateChanged = PassthroughSubject<GridPosition, Never>()
 
+    /// When true, external audio is ducked while PadDeck produces sound.
+    var duckingEnabled = true
+    /// Whether the mic is currently routing audio to the speaker.
+    @ObservationIgnored private var isMicProducingAudio = false
+
     private let engine = AVAudioEngine()
     private let mixer = AVAudioMixerNode()
 
@@ -84,9 +89,13 @@ final class AudioEngine {
                 at: nil
             ) { [weak self] in
                 DispatchQueue.main.async {
-                    self?.activePads.remove(pad.position)
-                    self?.playingStateChanged.send(pad.position)
-                    self?.onPadStopped?(pad.position)
+                    guard let self else { return }
+                    self.activePads.remove(pad.position)
+                    self.playingStateChanged.send(pad.position)
+                    #if os(iOS)
+                    if self.activePads.isEmpty { self.updateDuckingState() }
+                    #endif
+                    self.onPadStopped?(pad.position)
                 }
             }
         case .loop:
@@ -108,14 +117,21 @@ final class AudioEngine {
         let velocityScale = Float(max(velocity, 1)) / 127.0
         player.volume = pad.volume * velocityScale
         player.play()
+        let wasEmpty = activePads.isEmpty
         activePads.insert(pad.position)
         playingStateChanged.send(pad.position)
+        #if os(iOS)
+        if wasEmpty { updateDuckingState() }
+        #endif
     }
 
     func stop(at position: GridPosition) {
         playerNodes[position]?.stop()
         activePads.remove(position)
         playingStateChanged.send(position)
+        #if os(iOS)
+        if activePads.isEmpty { updateDuckingState() }
+        #endif
     }
 
     func stopAll() {
@@ -127,6 +143,9 @@ final class AudioEngine {
         for pos in wasPlaying {
             playingStateChanged.send(pos)
         }
+        #if os(iOS)
+        if !wasPlaying.isEmpty { updateDuckingState() }
+        #endif
     }
 
     func isPlaying(at position: GridPosition) -> Bool {
@@ -221,6 +240,10 @@ final class AudioEngine {
     func setMicActive(_ active: Bool) {
         if active { ensureMicChainConnected() }
         micGainNode.volume = active ? globalMicGain : 0
+        isMicProducingAudio = active
+        #if os(iOS)
+        updateDuckingState()
+        #endif
     }
 
     func switchVocalEffect(to effect: VocalEffect) {
@@ -282,11 +305,36 @@ final class AudioEngine {
 
     // MARK: - Private
 
+    #if os(iOS)
+    /// Base options always applied to the audio session.
+    private let baseSessionOptions: AVAudioSession.CategoryOptions = [
+        .defaultToSpeaker, .allowBluetoothHFP, .mixWithOthers
+    ]
+
+    /// Returns true when PadDeck is actively producing audible output.
+    private var isProducingAudio: Bool {
+        !activePads.isEmpty || isMicProducingAudio
+    }
+
+    /// Reconfigures the audio session to add or remove `.duckOthers`
+    /// based on whether PadDeck is producing sound and ducking is enabled.
+    private func updateDuckingState() {
+        let shouldDuck = duckingEnabled && isProducingAudio
+        var options = baseSessionOptions
+        if shouldDuck { options.insert(.duckOthers) }
+        do {
+            try AVAudioSession.sharedInstance().setCategory(.playAndRecord, options: options)
+        } catch {
+            print("AVAudioSession setCategory failed: \(error)")
+        }
+    }
+    #endif
+
     private func setupEngine() {
         #if os(iOS)
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playAndRecord, options: [.defaultToSpeaker, .allowBluetoothHFP])
+            try session.setCategory(.playAndRecord, options: baseSessionOptions)
             try session.setActive(true)
         } catch {
             print("AVAudioSession setup failed: \(error)")

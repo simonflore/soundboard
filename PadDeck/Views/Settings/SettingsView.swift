@@ -55,6 +55,21 @@ struct SettingsView: View {
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
+
+            #if os(iOS)
+            Section("Playback") {
+                Toggle(isOn: Binding(
+                    get: { appState.duckExternalAudio },
+                    set: { appState.duckExternalAudio = $0 }
+                )) {
+                    Text("Duck External Audio")
+                }
+
+                Text("Lowers other apps' audio while PadDeck is playing.")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+            }
+            #endif
         }
         .formStyle(.grouped)
     }
