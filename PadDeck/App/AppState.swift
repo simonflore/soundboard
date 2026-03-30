@@ -160,6 +160,7 @@ final class AppState {
 
     func handlePadPress(position: GridPosition, velocity: UInt8) {
         heldPads.insert(position)
+        if isEditMode { selectedPad = position }
         // Instrument mode: route all pads to note playback
         if let active = activeInstrument {
             let layout = active.type.noteLayout
